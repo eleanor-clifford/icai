@@ -314,12 +314,22 @@ async def get_preference_vote_for_single_text(
     )
 
     model = inverse_cai.models.get_model(model_name)
-    vote = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
-    vote = parse_individual_pref_vote(
-        vote,
-        num_principles=len(principles),
-        prompt_principles=prompt_principles,
-    )
+
+    vote = None
+    try:
+        vote = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+        vote = parse_individual_pref_vote(
+            vote,
+            num_principles=len(principles),
+            prompt_principles=prompt_principles,
+        )
+    except Exception as e:
+        if vote is None:
+            logger.error("Failed to generate votes")
+        else:
+            logger.error(f"Failed to parse votes: {vote}")
+        logger.error(e)
+        vote = {i: "invalid" for i in range(len(principles))}
 
     # change back to original keys
     vote = {numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles}

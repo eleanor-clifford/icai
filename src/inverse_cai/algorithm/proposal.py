@@ -192,7 +192,11 @@ async def generate_principles_from_single_ranking(
             )
 
             # generate principles
-            principle_output = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+            try:
+                principle_output = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+            except Exception as e:
+                logger.error(f"Failed to generate principles")
+                logger.error(e)
 
             # parse the principles
             try:
