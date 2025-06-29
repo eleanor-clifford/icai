@@ -94,9 +94,11 @@ Given the samples data above, check for each rule below which sample should be s
 {summaries}
 
 Answer in json format, e.g. {{0: "A", 1: "B", 2: "None", 3: "Both",...}}.
-Put "A" if A is selected according to that rule, and "B" if B is selected. Put "None" if a rule is not applicable to the two samples.
+Put "A" if A is selected according to that rule. 
+Put "B" if B is selected according to that rule.
 Put "Both" if both A and B should be selected, and the rule is categorical so it is impossible to select only one.
-Otherwise, no ties are allowed, only one of "A", "B" or "None".
+Put "None" if a rule is not applicable to the two samples.
+Otherwise, no ties are allowed, only one of "A", "B", "Both" or "None".
 Vote for all rules, even if you are unsure.
 DO NOT respond with any text apart from the json format above!
 DO NOT add markdown formatting around JSON.
