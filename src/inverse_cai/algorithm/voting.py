@@ -2,6 +2,7 @@ import ast
 import asyncio
 import random
 import time
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from loguru import logger
@@ -64,8 +65,7 @@ def get_votes_for_principles(
     for seed in range(1, num_seeds + 1):
         # Shuffle summary keys and split into chunks
         summary_keys = list(summaries.keys())
-        random.seed(seed)
-        random.shuffle(summary_keys)
+        np.random.shuffle(summary_keys)
         summaries_parts = [
             {k: summaries[k] for k in summary_keys[i : i + max_votes_in_single_prompt]}
             for i in range(0, len(summary_keys), max_votes_in_single_prompt)
@@ -291,7 +291,8 @@ async def get_preference_vote_for_single_text(
     votes can be corrected for right away.
     """
 
-    flipped = random.choice([True, False])
+    # random seed has already been set
+    flipped = np.random.choice([True, False])
 
     if flipped:
         sample_a, sample_b = rejected_sample, preferred_sample

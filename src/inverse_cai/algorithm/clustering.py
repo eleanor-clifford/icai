@@ -42,8 +42,9 @@ def cluster_principles_random(
     logger.info(f"Clustering principles randomly into {num_clusters} clusters")
     principles = copy.deepcopy(principles)
     principles_by_cluster = {}
-    # shuffle the principles
-    random.shuffle(principles)
+
+    # random seed has already been set
+    np.random.shuffle(principles)
     for i, principle in enumerate(principles):
         cluster = i % num_clusters
         if cluster not in principles_by_cluster:
