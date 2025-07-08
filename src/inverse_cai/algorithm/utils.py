@@ -9,7 +9,7 @@ import logging
 import re
 
 
-def parse_prompt(prompt_str: str, prompt_kwargs, prompt_optional_kwargs) -> list[dict]:
+def parse_prompt(prompt_str: str, prompt_kwargs, prompt_optional_kwargs={}) -> list[dict]:
     """Parse prompt str to list of messages."""
 
     # check kwargs in prompt_str and log warnings for unused keys
@@ -43,33 +43,43 @@ def parse_prompt(prompt_str: str, prompt_kwargs, prompt_optional_kwargs) -> list
 
     return messages
 
+
 prompt_warned = False
+
 
 def get_prompt_from_row(row) -> str:
     """
     Get the prompt of a row
-
-    In some datasets, the prompt is not available in the data but rather
-    included in the text_a and text_b columns. This function attempts to
-    extract the prompt from the two samples.
     """
+
     if "prompt" in row:
         return row["prompt"]
+    else:
+        return get_prompt_from_two_samples(row["text_a"], row["text_b"])
+
+
+def get_prompt_from_two_samples(text_a, text_b) -> str:
+    """
+    Extract prompt from two samples
+
+    In some datasets, the prompt is not available in the data but rather
+    included in the text_a and text_b columns.
+    """
 
     prompt_a = (
-        row["text_a"].split("Instruction:\n")[-1]
+        text_a.split("Instruction:\n")[-1]
         .split("Response:\n")[0]
         .split("Assistant:\n")[0]
     )
     prompt_b = (
-        row["text_b"].split("Instruction:\n")[-1]
+        text_b.split("Instruction:\n")[-1]
         .split("Response:\n")[0]
         .split("Assistant:\n")[0]
     )
     if prompt_a != prompt_b:
         global prompt_warned
         if not prompt_warned:
-            # TODO: there's probably a neater way to do this
+            # TODO: there must be a neater way to do this
             logger.warning(
                 "ICAI doesn't know how to get prompts from this data: "
                 "there is no \"prompt\" column and it couldn't be figured "
@@ -122,7 +132,8 @@ def _get_error_message(err):
 
 def _fatal_model_error(err):
     code = _get_http_code(err)
-    if code: print(f"Got HTTP error {code}") # debug
+    if code:
+        logger.info(f"Got HTTP error {code}")
 
     if code in (403,):
         # OpenAI returns this when it moderates

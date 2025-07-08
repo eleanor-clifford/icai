@@ -350,7 +350,7 @@ def run(cfg: DictConfig):
                 model_name=cfg.alg_model,
                 cache_path=test_annotation_cache_path,
                 config=cfg,
-                prompt_principles=True,
+                is_prompt_principles=True,
                 max_concurrent_tasks=cfg.async_task_num,
                 num_seeds=cfg.s3_num_seeds_to_reannotate_with,
                 voting_method_cross_seed=cfg.s3_voting_method_cross_seed,

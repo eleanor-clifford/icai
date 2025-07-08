@@ -25,7 +25,7 @@ def get_votes_for_principles(
     max_concurrent_tasks: int,
     num_seeds: int,
     voting_method_cross_seed: Literal["majority", "unanimous"],
-    prompt_principles=False,
+    is_prompt_principles=False,
 ) -> tuple[pd.DataFrame, dict]:
     """Get votes for principles.
 
@@ -40,11 +40,11 @@ def get_votes_for_principles(
         cache_path: Path to cache (without .jsonl suffix)
         max_concurrent_tasks: Maximum number of concurrent tasks
         num_seeds: Number of seeds, i.e. how often to re-annotate the same data
-        prompt_principles: Whether to vote for prompt principles
+        is_prompt_principles: Whether to vote for prompt principles
     """
 
     logger.info("Getting votes for principles")
-    if prompt_principles:
+    if is_prompt_principles:
         logger.info("Voting for prompt principles")
     else:
         logger.info("Voting for regular principles")
@@ -87,7 +87,7 @@ def get_votes_for_principles(
                     config=config,
                     model_name=model_name,
                     cache_path=cache_path_seed,
-                    prompt_principles=prompt_principles,
+                    is_prompt_principles=is_prompt_principles,
                     max_concurrent_tasks=max_concurrent_tasks,
                 )
             )
@@ -192,7 +192,7 @@ async def run_pass_to_get_votes_for_principles(
     config: ExpConfig,
     model_name: str,
     cache_path: Path,
-    prompt_principles: bool,
+    is_prompt_principles: bool,
     max_concurrent_tasks: int = 10,
 ) -> dict:
     """
@@ -244,7 +244,7 @@ async def run_pass_to_get_votes_for_principles(
                 principles=principles,
                 model_name=model_name,
                 config=config,
-                prompt_principles=prompt_principles,
+                is_prompt_principles=is_prompt_principles,
             )
 
             # Update cache
@@ -273,6 +273,35 @@ async def run_pass_to_get_votes_for_principles(
     return full_votes
 
 
+async def get_preference_vote_for_messages(
+    messages,
+    config: ExpConfig,
+    model_name: str,
+    numbered_principles: dict,
+    valid_values: dict,
+):
+    model = inverse_cai.models.get_model(model_name)
+
+    vote = None
+    try:
+        vote = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+        vote = parse_individual_pref_vote(
+            vote,
+            num_principles=len(numbered_principles),
+            valid_values=valid_values,
+        )
+
+    except Exception as e:
+        if vote is None:
+            logger.error("Failed to generate votes")
+        else:
+            logger.error(f"Failed to parse votes: {vote}")
+        logger.error(e)
+        vote = {i: "invalid" for i in range(len(numbered_principles))}
+
+    return {numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles}
+
+
 async def get_preference_vote_for_single_text(
     prompt,
     preferred_sample,
@@ -280,17 +309,53 @@ async def get_preference_vote_for_single_text(
     principles,
     config: ExpConfig,
     model_name: str,
-    prompt_principles: bool = False,
+    is_prompt_principles: bool = False,
 ):
-    """
-    Given a dataframe of conversations, let the model votes according to each proposed principles.
+    if is_prompt_principles:
+        return await get_prompt_preference_vote_for_single_text(
+            prompt, principles, config, model_name,
+        )
+    else:
+        return await get_response_preference_vote_for_single_text(
+            preferred_sample, rejected_sample, principles, config, model_name,
+        )
 
-    Model output is formatted as json format, for each principle.
 
-    Note: preference-based voting require ast-based parsing here to ensure flipped
-    votes can be corrected for right away.
-    """
+async def get_prompt_preference_vote_for_single_text(
+    prompt,
+    principles,
+    config: ExpConfig,
+    model_name: str,
+):
+    numbered_principles = {i: v for i, v in enumerate(principles)}
 
+    messages = inverse_cai.algorithm.utils.parse_prompt(
+        prompt_str=config.alg_prompts.prompt_voting_prompt,
+        prompt_kwargs=dict(
+            summaries=numbered_principles,
+            prompt=prompt,
+        )
+    )
+    return await get_preference_vote_for_messages(
+        messages, config, model_name, numbered_principles,
+        valid_values={
+            "True":   True,
+            "true":   True,
+            True:     True,
+            "False":  False,
+            "false":  False,
+            False:    False,
+        },
+    )
+
+
+async def get_response_preference_vote_for_single_text(
+    preferred_sample,
+    rejected_sample,
+    principles,
+    config: ExpConfig,
+    model_name: str,
+):
     flipped = random.choice([True, False])
 
     if flipped:
@@ -301,66 +366,33 @@ async def get_preference_vote_for_single_text(
     numbered_principles = {i: v for i, v in enumerate(principles)}
 
     messages = inverse_cai.algorithm.utils.parse_prompt(
-        prompt_str=(config.alg_prompts.prompt_voting_prompt if prompt_principles else config.alg_prompts.voting_prompt),
-        prompt_kwargs=(
-                dict(prompt=prompt)
-            if prompt_principles else
-                dict(
-                    sample_a=sample_a,
-                    sample_b=sample_b,
-                )
-        ) | dict(summaries=numbered_principles),
-        prompt_optional_kwargs={},
+        prompt_str=config.alg_prompts.voting_prompt,
+        prompt_kwargs=dict(
+            sample_a=sample_a,
+            sample_b=sample_b,
+            summaries=numbered_principles,
+        )
     )
 
-    model = inverse_cai.models.get_model(model_name)
-
-    vote = None
-    try:
-        vote = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
-        vote = parse_individual_pref_vote(
-            vote,
-            num_principles=len(principles),
-            prompt_principles=prompt_principles,
-        )
-    except Exception as e:
-        if vote is None:
-            logger.error("Failed to generate votes")
-        else:
-            logger.error(f"Failed to parse votes: {vote}")
-        logger.error(e)
-        vote = {i: "invalid" for i in range(len(principles))}
-
-    # change back to original keys
-    vote = {numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles}
+    vote = await get_preference_vote_for_messages(
+        messages, config, model_name, numbered_principles,
+        valid_values={
+            "A":        True,
+            "B":        False,
+            "Both":     "Both",
+            "Neither":  "Neither",
+            "None":     None,
+            None:       None,
+        },
+    )
 
     if flipped:
-        vote = {k: "A" if v == "B" else "B" if v == "A" else v for k, v in vote.items()}
+        vote = {k: (not v) if isinstance(v, bool) else v for k, v in vote.items()}
 
-    # translate votes to correct/incorrect/invalid
-    updated_vote = {}
-    for key, value in vote.items():
-        if prompt_principles:
-            if value in (True, False):
-                updated_vote[key] = value
-            else:
-                updated_vote[key] = "invalid"
-        else:
-            if value == "A":
-                updated_vote[key] = True
-            elif value == "B":
-                updated_vote[key] = False
-            elif value is None:
-                updated_vote[key] = None
-            elif value in ("Both", "Neither"):
-                updated_vote[key] = value
-            else:
-                updated_vote[key] = "invalid"
-
-    return updated_vote
+    return vote
 
 
-def parse_individual_pref_vote(vote, num_principles, prompt_principles=False):
+def parse_individual_pref_vote(vote, num_principles, valid_values):
     """
     Parse preference-based votes.
 
@@ -382,13 +414,11 @@ def parse_individual_pref_vote(vote, num_principles, prompt_principles=False):
             f"Vote length {len(vote_dict)} does not match number of principles {num_principles}"
         )
 
-    if prompt_principles:
-        valid = ["True", "False", "true", "false", True, False]
-    else:
-        valid = ["A", "B", "Both", "Neither", "None", None]
     for key, value in vote_dict.items():
-        if value not in valid:
-            logger.error(f"Vote value {value} is not in {valid}")
+        if value in valid_values:
+            vote_dict[key] = valid_values[value]
+        else:
+            logger.error(f"Vote value {value} is not in {list(valid.keys())}")
             vote_dict[key] = "invalid"
 
     return vote_dict
