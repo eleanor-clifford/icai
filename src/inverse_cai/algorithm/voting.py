@@ -2,6 +2,7 @@ import ast
 import asyncio
 import random
 import time
+import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -60,11 +61,11 @@ def get_votes_for_principles(
         f"Running up to {max_concurrent_tasks} LLM calls asynchronously at the same time."
     )
 
-    hashed_votes_per_seed = {seed: [] for seed in range(1, num_seeds + 1)}
+    hashed_votes_per_seed = {seed: [] for seed in range(num_seeds)}
 
-    for seed in range(1, num_seeds + 1):
+    for seed in range(num_seeds):
         # Shuffle summary keys and split into chunks
-        summary_keys = list(summaries.keys())
+        summary_keys = sorted(list(summaries.keys()))
         np.random.shuffle(summary_keys)
         summaries_parts = [
             {k: summaries[k] for k in summary_keys[i : i + max_votes_in_single_prompt]}
@@ -76,7 +77,7 @@ def get_votes_for_principles(
             f"Full summaries: {summaries}\nFull summaries parts: {summaries_parts}"
             f"max votes in single prompt: {max_votes_in_single_prompt}"
         )
-        logger.info(f"Running voting for seed {seed}/{num_seeds}.")
+        logger.info(f"Running voting for seed {seed+1}/{num_seeds}.")
         for i, summary_part in enumerate(summaries_parts):
             logger.info(f"Starting pass {i+1}/{len(summaries_parts)}")
             cache_path_seed = Path(f"{cache_path}_seed_{seed}")
@@ -89,6 +90,7 @@ def get_votes_for_principles(
                     cache_path=cache_path_seed,
                     prompt_principles=prompt_principles,
                     max_concurrent_tasks=max_concurrent_tasks,
+                    seed=seed,
                 )
             )
             hashed_votes_per_seed[seed].append(votes)
@@ -194,6 +196,7 @@ async def run_pass_to_get_votes_for_principles(
     cache_path: Path,
     prompt_principles: bool,
     max_concurrent_tasks: int = 10,
+    seed: int = 0,
 ) -> dict:
     """
     Given a dataframe of conversations, run voting with each proposed
@@ -210,7 +213,7 @@ async def run_pass_to_get_votes_for_principles(
 
     # Function to process each row
     async def process_row(
-        index, row, summaries, model_name, config, initial_cached_votes
+        index, row, summaries, model_name, config, initial_cached_votes, function_seed,
     ):
         async with semaphore:
             preferred = get_preferred_text(row)
@@ -245,6 +248,8 @@ async def run_pass_to_get_votes_for_principles(
                 model_name=model_name,
                 config=config,
                 prompt_principles=prompt_principles,
+                function_seed=function_seed,
+                model_seed=config.random_seed + seed,
             )
 
             # Update cache
@@ -259,7 +264,8 @@ async def run_pass_to_get_votes_for_principles(
 
     # Create async tasks for parallel processing
     tasks = [
-        process_row(index, row, summaries, model_name, config, initial_cached_votes)
+        # these functions will run out of order, so we pass in a deterministic seed for repeatability
+        process_row(index, row, summaries, model_name, config, initial_cached_votes, np.random.randint(0, 2**32))
         for index, row in feedback_df.iterrows()
     ]
 
@@ -281,6 +287,8 @@ async def get_preference_vote_for_single_text(
     config: ExpConfig,
     model_name: str,
     prompt_principles: bool = False,
+    function_seed = 0,
+    model_seed = 0,
 ):
     """
     Given a dataframe of conversations, let the model votes according to each proposed principles.
@@ -291,8 +299,8 @@ async def get_preference_vote_for_single_text(
     votes can be corrected for right away.
     """
 
-    # random seed has already been set
-    flipped = np.random.choice([True, False])
+    rng = np.random.default_rng(function_seed)
+    flipped = rng.choice([True, False])
 
     if flipped:
         sample_a, sample_b = rejected_sample, preferred_sample
@@ -314,7 +322,7 @@ async def get_preference_vote_for_single_text(
         prompt_optional_kwargs={},
     )
 
-    model = inverse_cai.models.get_model(model_name)
+    model = inverse_cai.models.get_model(model_name, seed=model_seed)
 
     vote = None
     try:

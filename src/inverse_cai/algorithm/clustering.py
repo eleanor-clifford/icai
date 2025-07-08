@@ -1,5 +1,6 @@
 import random
 import copy
+import numpy as np
 from sklearn.cluster import KMeans
 from loguru import logger
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -117,7 +118,7 @@ def get_cluster_summaries(
         if len(principles) == 1:
             summaries[i] = principles[0]
         elif sample_instead_of_rewrite:
-            summaries[i] = random.choice(principles)
+            summaries[i] = np.random.choice(principles)
         else:
             summaries[i] = summarize_cluster(
                 principles,

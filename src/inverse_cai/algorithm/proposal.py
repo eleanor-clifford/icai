@@ -1,6 +1,7 @@
 import ast
 import asyncio
 import pandas as pd
+import traceback
 from tqdm.asyncio import tqdm
 from loguru import logger
 
@@ -160,6 +161,9 @@ async def generate_principles_from_single_ranking(
     """
     assert num_principles > 0, "Number of principles must be greater than 0"
 
+    # NOTE: this function can't contain randomness because it might be run
+    # out of order. If it does need to, a seed must be carefully passed in.
+
     # get the model
     model = inverse_cai.models.get_model(model_name)
     principless: list = []
@@ -198,6 +202,7 @@ async def generate_principles_from_single_ranking(
             except Exception as e:
                 logger.error(f"Failed to generate principles")
                 logger.error(e)
+                logger.info(traceback.format_exc())
                 continue
 
             # parse the principles
@@ -213,6 +218,8 @@ async def generate_principles_from_single_ranking(
             except Exception as e:
                 logger.error(f"Failed to parse principles: {principle_output}")
                 logger.error(e)
+                logger.info(traceback.format_exc())
+                continue
 
         principless.append(principles)
 

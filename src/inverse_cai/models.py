@@ -1,7 +1,8 @@
-from typing import Any, Hashable, Sequence, Mapping
+from typing import Any, Sequence, Mapping, Union
 from functools import partial
 import json
 from frozendict import frozendict
+from filelock import FileLock
 
 import asyncio
 import langchain_core.messages.base
@@ -9,6 +10,7 @@ import numpy as np
 import pickle
 import os
 import os.path
+import hashlib
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_anthropic import ChatAnthropic
@@ -30,74 +32,110 @@ OPENROUTER_HEADERS = {
 }
 
 
-def hashable(obj):
-    if isinstance(obj, str):
-        # Strings are sequences, and all their subelements are also sequences, on and on forever
+def serializable(obj):
+    if isinstance(obj, Union[str, int, float]):
         return obj
-    if isinstance(obj, Sequence):
-        return tuple(hashable(x) for x in obj)
+    elif isinstance(obj, Sequence):
+        return tuple(serializable(x) for x in obj)
     elif isinstance(obj, Mapping):
-        return frozendict({k: hashable(v) for k, v in obj.items()})
+        return frozendict({k: serializable(v) for k, v in obj.items()})
     elif isinstance(obj, langchain_core.messages.base.BaseMessage):
-        return hashable(langchain_core.messages.base.message_to_dict(obj))
-    elif isinstance(obj, Hashable):
-        return obj
+        return serializable(langchain_core.messages.base.message_to_dict(obj))
     else:
-        logger.warning(f"{obj} ({type(obj).__name__}) is not hashable, converting to string for cache key")
+        logger.warning(f"{obj} ({type(obj).__name__}) is not serializable, converting to string for cache key")
         return str(obj)
 
 
+def hash_obj(obj):
+    m = hashlib.sha256()
+    m.update(json.dumps(serializable(obj)).encode())
+    return m.hexdigest()
+
+
+def partial_hash(obj):
+    """
+    This function is for humans, to make it easier to inspect the differences
+    between objects
+    """
+    if isinstance(obj, str):
+        if len(obj) < 20:
+            return obj
+        else:
+            return f"hash:{hash_obj(obj)[:8]}"
+    elif isinstance(obj, Sequence):
+        return tuple(partial_hash(x) for x in obj)
+    elif isinstance(obj, Mapping):
+        return frozendict({k: partial_hash(v) for k, v in obj.items()})
+    else:
+        return f"hash:{hash_obj(obj)[:8]}"
+
+
 class CachedModel:
-    def __init__(self, cache_path):
-        self.cache_path = cache_path
+
+    def __init__(self, cache_dir, seed=0):
+        self.cache_dir = cache_dir
         self.cache = None
         self.cached_sync_funcs = tuple()
         self.cached_async_funcs = tuple()
+        self.seed = seed
+
+    @property
+    def cache_path(self):
+        return f"{self.cache_dir}/{self.seed}.pkl"
 
     def load_cache(self):
         try:
             with open(self.cache_path, "rb") as cache_file:
-                self.cache = pickle.load(cache_file)
+                file_cache = pickle.load(cache_file)
         except (FileNotFoundError, EOFError):
-            pass
+            file_cache = {}
 
         if self.cache is None:
             self.cache = {}
 
+        self.cache = file_cache | self.cache
+
     def save_cache(self):
-        os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
-        with open(self.cache_path, "wb") as cache_file:
-            pickle.dump(self.cache, cache_file)
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+        with FileLock(self.cache_path + ".lock"):
+            self.load_cache()
+            with open(self.cache_path, "wb") as cache_file:
+                pickle.dump(self.cache, cache_file)
 
     @staticmethod
     async def _arun(coroutine):
         await coroutine
         return coroutine
 
-    async def acache_run(self, func: str, *args, **kwargs):
+    async def async_cache_run(self, func: str, *args, **kwargs):
         if self.cache is None:
             self.load_cache()
 
-        result = self.cache.get(hashable((func, args, kwargs)))
+        h = hash_obj((func, args, kwargs))
+        result = self.cache.get(h)
 
         if result is None:
-            logger.debug(f"returning without cache: {(func, args, kwargs)}")
+            logger.debug(f"cache {self.seed} miss ({h[:8]})")
             result = self.model.__getattr__(func)(*args, **kwargs)
 
             if asyncio.iscoroutine(result):
                 result = await result
 
-            self.cache[hashable((func, args, kwargs))] = result
+            self.cache[h] = result
             self.save_cache()
+
+        else:
+            logger.debug(f"cache {self.seed} hit ({h[:8]})")
 
         return result
 
     def cache_run(self, *args, **kwargs):
-        return asyncio.run(self.acache_run(*args, **kwargs))
+        return asyncio.run(self.async_cache_run(*args, **kwargs))
 
     def __getattr__(self, attr):
         if attr in self.cached_async_funcs:
-            return partial(self.acache_run, attr)
+            return partial(self.async_cache_run, attr)
         elif attr in self.cached_sync_funcs:
             return partial(self.cache_run, attr)
         else:
@@ -111,7 +149,7 @@ class CachedLLM(CachedModel):
         temp: float = 0.0,
         enable_logprobs: bool = False,
         max_tokens: int = 1000,
-        seed: int = 0,
+        **kwargs,
     ) -> Any:
 
         """Get a language model instance.
@@ -125,7 +163,7 @@ class CachedLLM(CachedModel):
         Returns:
             CachedModel-wrapped LogWrapper-wrapped language model instance
         """
-        super().__init__(cache_path=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}_{seed}")
+        super().__init__(cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}", **kwargs)
         self.cached_sync_funcs = ("invoke",)
         self.cached_async_funcs = ("ainvoke",)
 
@@ -184,11 +222,11 @@ class CachedEmbeddingsModel(CachedModel):
     def __init__(
         self,
         name: str,
-        seed: int = 0,
+        **kwargs,
     ):
         # TODO: support other embeddings?
 
-        super().__init__(cache_path=f"exp/cache/models/{name}_{seed}")
+        super().__init__(cache_dir=f"exp/cache/models/{name}", **kwargs)
 
         openrouter = name.startswith("openrouter")
         openai_api_key = os.environ.get("OPENAI_API_KEY")
