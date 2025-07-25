@@ -293,9 +293,9 @@ def run(cfg: DictConfig):
         parsed_prompt_votes = icai_loader.parse_raw_votes(results["raw_prompt_votes"])
         train_annotated_pairs = create_annotated_pairs(
             df=data,
-            principles=results["summaries"],
+            principle_index_to_text=results["summaries"],
             comparison_votes=parsed_votes,
-            nonpref_principles=results["prompt_summaries"],
+            nonpref_principle_index_to_text=results["prompt_summaries"],
             nonpref_comparison_votes=parsed_prompt_votes,
             dataset_name=f"ICAI Training Dataset - {pathlib.Path(hydra_out_path).name}",
             auto_detect_annotators=True,
@@ -363,9 +363,9 @@ def run(cfg: DictConfig):
             parsed_prompt_votes = icai_loader.parse_raw_votes(raw_prompt_votes)
             test_annotated_pairs = create_annotated_pairs(
                 df=test_df,
-                principles=results["summaries"],
+                principle_index_to_text=results["summaries"],
                 comparison_votes=parsed_votes,
-                nonpref_principles=results["prompt_summaries"],
+                nonpref_principle_index_to_text=results["prompt_summaries"],
                 nonpref_comparison_votes=parsed_prompt_votes,
                 dataset_name=f"ICAI Test Dataset - {pathlib.Path(hydra_out_path).name}",
                 auto_detect_annotators=True,
