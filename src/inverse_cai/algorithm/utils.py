@@ -133,7 +133,7 @@ def _get_error_message(err):
     if len(err.args) > 0 and isinstance(err.args[0], dict) and "message" in err.args[0]:
         return err.args[0]["messag"]
 
-    return str(error)
+    return str(err)
 
 
 def _fatal_model_error(err):
