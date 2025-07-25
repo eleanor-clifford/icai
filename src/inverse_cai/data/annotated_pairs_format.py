@@ -132,7 +132,8 @@ def votes_to_annotations(
 
 def add_annotators(
     output: Dict,
-    principles: Mapping[int, str] | None = None,
+    principles: List[str] | None = None,
+    nonpref_principles: List[str] | None = None,
     additional_columns: List[str] = None,
 ) -> None:
     """Add all annotators to the output structure.
@@ -142,7 +143,8 @@ def add_annotators(
 
     Args:
         output (Dict): The output dataset dictionary to modify in-place
-        principles (Mapping[int, str] | None): Dictionary of principles where keys are principle IDs
+        principles (List[str] | None): principles to add as annotators
+        nonpref_principles (List[str] | None): non-preference principles to add as annotators
         additional_columns (List[str] | None): List of additional columns from the training data to include as annotations
     """
     # Create default annotator
@@ -154,19 +156,22 @@ def add_annotators(
     }
     output["metadata"]["default_annotator"] = default_annotator_id
 
-    # Determine active principles
-    if principles is not None:
-        active_principles = list(principles.values())
-    else:
-        active_principles = []
-
     # Create principle annotators
-    for principle in active_principles:
-        annotator_id = hash_string(principle)
-        output["annotators"][annotator_id] = {
-            "description": principle,
-            "type": "principle",
-        }
+    if principles is not None:
+        for principle in principles:
+            annotator_id = hash_string(principle)
+            output["annotators"][annotator_id] = {
+                "description": principle,
+                "type": "principle",
+            }
+
+    if nonpref_principles is not None:
+        for nonpref_principle in nonpref_principles:
+            annotator_id = hash_string(nonpref_principle)
+            output["annotators"][annotator_id] = {
+                "description": nonpref_principle,
+                "type": "non_preference_principle",
+            }
 
     # Create column annotators if additional columns are specified
     if additional_columns:
@@ -224,16 +229,17 @@ def detect_annotator_columns(df: pd.DataFrame) -> List[str]:
 def create_annotated_pairs(
     df: pd.DataFrame,
     dataset_name: str,
-    principles: Mapping[int, str] | None = None,
+    principle_index_to_text: Mapping[int, str] | None = None,
     comparison_votes: (
         Mapping[int, Dict[int, Union[bool, str, None]]] | pd.Series | None
     ) = None,
-    non_preference_principles: Mapping[int, str] | None = None,
-    non_preference_comparison_votes: (
+    nonpref_principle_index_to_text: Mapping[int, str] | None = None,
+    nonpref_comparison_votes: (
         Mapping[int, Dict[int, Union[bool, str, None]]] | pd.Series | None
     ) = None,
     additional_columns: List[str] = None,
     auto_detect_annotators: bool = True,
+    ignored_columns: tuple = ("principles", "prompt_principles"),
 ) -> Dict:
     """Convert ICAI results to annotated pairs format using direct data inputs.
 
@@ -241,8 +247,10 @@ def create_annotated_pairs(
         df: DataFrame with preference data pairs. Must have mandatory "text_a", "text_b", and DEFAULT_PREFERENCE_COLUMN rows, and an optional "input" (prompt).
         dataset_name: Name for the dataset
         additional_columns: List of additional columns from the training data to include as annotations
-        principles: Dictionary of principles where keys are principle IDs
-        comparison_votes: Dictionary of comparison votes
+        principle_index_to_text: Dictionary of principles where keys are principle IDs (used in votes)
+        comparison_votes: Dictionary of votes per comparison
+        nonpref_principle_index_to_text: Dictionary of non-preference principles where keys are principle IDs
+        nonpref_comparison_votes: Dictionary of votes for non-preference principles per comparison
         auto_detect_annotators: Whether to automatically detect annotator columns in the DataFrame
 
     Returns:
@@ -273,17 +281,28 @@ def create_annotated_pairs(
     # Combine detected columns with manually specified ones
     all_additional_columns = list(set((additional_columns or []) + detected_columns))
 
+    def get_active_principles(principles, comparison_votes):
+        if (principles is None) != (comparison_votes is None):
+            raise ValueError(
+                "Got values for principles or comparison_votes, but not both. "
+                "Please provide both or neither."
+            )
+        if principles is None:
+            return []
+        else:
+            return list(principles.values())
+
+    active_principles = get_active_principles(principle_index_to_text, comparison_votes)
+    active_nonpref_principles = get_active_principles(
+        nonpref_principle_index_to_text, nonpref_comparison_votes
+    )
+
     # Add all annotators to the output
     add_annotators(
         output,
-        principles,
-        all_additional_columns,
-    )
-
-    add_annotators(
-        output,
-        non_preference_principles,
-        all_additional_columns,
+        principles=active_principles,
+        nonpref_principles=active_nonpref_principles,
+        additional_columns=all_additional_columns,
     )
 
     # Identify metadata columns (columns that are not standard columns, not annotator columns, and not used for comparison content)
@@ -298,7 +317,11 @@ def create_annotated_pairs(
     metadata_columns = [
         col
         for col in df.columns
-        if col not in standard_columns and col not in all_additional_columns
+        if (
+            col not in standard_columns
+            and col not in all_additional_columns
+            and col not in ignored_columns
+        )
     ]
 
     # Add metadata columns to the overall metadata
@@ -308,30 +331,6 @@ def create_annotated_pairs(
 
     # Prepare data needed for annotations
     default_annotator_id = output["metadata"]["default_annotator"]
-
-    if principles is None or comparison_votes is None:
-        if not (principles is None and comparison_votes is None):
-            raise ValueError(
-                "Got values for principles or comparison_votes, but not both. "
-                "Please provide both or neither."
-            )
-        active_principles = []
-    else:
-        active_principles = list(principles.values())
-
-    if principles is not None:
-        active_principles = list(principles.values())
-        assert (
-            comparison_votes is not None
-        ), "Comparison votes are required when principles are provided"
-    else:
-        active_principles = []
-
-    # TODO: robustness and assertion stuff
-    if non_preference_principles is not None:
-        active_non_preference_principles = list(non_preference_principles.values())
-    else:
-        active_non_preference_principles = []
 
     # Process each comparison
     for idx, row in df.iterrows():
@@ -382,7 +381,10 @@ def create_annotated_pairs(
             if idx in comparison_votes:
                 votes = comparison_votes[idx]
                 principle_annotations = votes_to_annotations(
-                    votes, principles, active_principles, reference_preference
+                    votes=votes,
+                    principle_index_to_text=principle_index_to_text,
+                    active_principles=active_principles,
+                    reference_preference=reference_preference,
                 )
                 annotations.update(principle_annotations)
             else:
@@ -390,20 +392,17 @@ def create_annotated_pairs(
                     f"Missing votes for comparison with index {idx}, skipping principle annotations"
                 )
 
-        if (
-            non_preference_comparison_votes is not None
-            and len(non_preference_comparison_votes) > 0
-        ):
-            if idx in non_preference_comparison_votes:
-                votes = non_preference_comparison_votes[idx]
-                non_preference_principle_annotations = votes_to_annotations(
-                    votes,
-                    non_preference_principles,
-                    active_non_preference_principles,
-                    None,
+        if nonpref_comparison_votes is not None and len(nonpref_comparison_votes) > 0:
+            if idx in nonpref_comparison_votes:
+                votes = nonpref_comparison_votes[idx]
+                nonpref_principle_annotations = votes_to_annotations(
+                    votes=votes,
+                    principle_index_to_text=nonpref_principle_index_to_text,
+                    active_principles=active_nonpref_principles,
+                    reference_preference=None,
                     non_preference=True,
                 )
-                annotations.update(non_preference_principle_annotations)
+                annotations.update(nonpref_principle_annotations)
             else:
                 logger.warning(
                     f"Missing non-preference votes for comparison with index {idx}, skipping principle annotations"
@@ -470,7 +469,7 @@ def results_to_annotated_pairs(
     # Call the core implementation with loaded data
     result = create_annotated_pairs(
         df=train_df,
-        principles=principles,
+        principle_index_to_text=principles,
         comparison_votes=comparison_votes,
         dataset_name=dataset_name,
         additional_columns=additional_columns,

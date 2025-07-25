@@ -139,7 +139,7 @@ def test_add_annotators():
     """Test the add_annotators function."""
     # Setup test data
     output = {"annotators": {}, "metadata": {}}
-    principles = {1: "Be honest", 2: "Be helpful"}
+    principles = ["Be honest", "Be helpful"]
 
     # Run function with filter_to_constitution=True
     add_annotators(output, principles)
@@ -147,7 +147,7 @@ def test_add_annotators():
     # Verify results
     assert (
         len(output["annotators"]) == 3
-    ), "Should have default + 2 principle annotators"
+    ), f"Should have default + 2 principle annotators, got {len(output['annotators'])} ({output['annotators']})"
 
     # Compute expected default annotator ID
     default_annotator_id = hash_string(DEFAULT_ANNOTATOR_DESCRIPTION)
@@ -223,7 +223,7 @@ def test_create_annotated_pairs():
     # Run function
     result = create_annotated_pairs(
         df=train_df,
-        principles=principles,
+        principle_index_to_text=principles,
         comparison_votes=comparison_votes,
         dataset_name=dataset_name,
     )
@@ -312,7 +312,7 @@ def test_create_annotated_pairs_with_additional_columns():
         }
     )
 
-    principles = {1: "Be honest", 2: "Be helpful"}
+    principle_index_to_text = {1: "Be honest", 2: "Be helpful"}
     comparison_votes = {0: {1: True, 2: False}}
     dataset_name = "Test Dataset"
     additional_columns = ["additional_column"]
@@ -320,7 +320,7 @@ def test_create_annotated_pairs_with_additional_columns():
     # Run function
     result = create_annotated_pairs(
         df=train_df,
-        principles=principles,
+        principle_index_to_text=principle_index_to_text,
         comparison_votes=comparison_votes,
         dataset_name=dataset_name,
         additional_columns=additional_columns,

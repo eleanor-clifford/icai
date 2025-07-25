@@ -25,7 +25,7 @@ def get_votes_for_principles(
     max_concurrent_tasks: int,
     num_seeds: int,
     voting_method_cross_seed: Literal["majority", "unanimous"],
-    prompt_principles=False,
+    is_prompt_principles=False,
 ) -> tuple[pd.DataFrame, dict]:
     """Get votes for principles.
 
@@ -40,12 +40,12 @@ def get_votes_for_principles(
         cache_path: Path to cache (without .jsonl suffix)
         max_concurrent_tasks: Maximum number of concurrent tasks
         num_seeds: Number of seeds, i.e. how often to re-annotate the same data
-        prompt_principles: Whether to vote for prompt principles
+        is_prompt_principles: Whether to vote for prompt principles
     """
 
     logger.info("Getting votes for principles")
-    if prompt_principles:
-        logger.info("Voting for prompt principles (rather than regular principles)")
+    if is_prompt_principles:
+        logger.info("Voting for prompt principles")
     else:
         logger.info("Voting for regular principles")
 
@@ -87,7 +87,7 @@ def get_votes_for_principles(
                     config=config,
                     model_name=model_name,
                     cache_path=cache_path_seed,
-                    prompt_principles=prompt_principles,
+                    is_prompt_principles=is_prompt_principles,
                     max_concurrent_tasks=max_concurrent_tasks,
                 )
             )
@@ -192,7 +192,7 @@ async def run_pass_to_get_votes_for_principles(
     config: ExpConfig,
     model_name: str,
     cache_path: Path,
-    prompt_principles: bool,
+    is_prompt_principles: bool,
     max_concurrent_tasks: int = 10,
 ) -> dict:
     """
@@ -213,73 +213,47 @@ async def run_pass_to_get_votes_for_principles(
         index, row, summaries, model_name, config, initial_cached_votes
     ):
         async with semaphore:
-            if prompt_principles:
-                raise NotImplementedError(
-                    (
-                        "Prompt principles not implemented. "
-                        "Recent changes to voting system require a re-implementation."
-                    )
-                )
-                # TODO: Adapt prompt principles to work with the new voting system.
-                # Now the process row command returns a single dictionary, with
-                # each key being the hash of the relevant vote and the
-                # value being the individual vote.
+            preferred = get_preferred_text(row)
+            rejected = get_rejected_text(row)
 
-                def _get_prompt(row):
-                    if "prompt" in row:
-                        return row["prompt"]
-                    else:
-                        return inverse_cai.algorithm.utils.get_prompt_from_two_samples(
-                            sample_a=row["text_a"],
-                            sample_b=row["text_b"],
-                        )
-
-                vote = await get_prompt_principle_vote_for_single_text(
-                    prompt=_get_prompt(row),
-                    summaries=summaries,
+            principles = list(summaries.values())
+            hashes = {
+                principle: get_vote_hash(
+                    preferred=preferred,
+                    rejected=rejected,
+                    principle=principle,
                     model_name=model_name,
-                    config=config,
                 )
-            else:
-                preferred = get_preferred_text(row)
-                rejected = get_rejected_text(row)
+                for principle in principles
+            }
 
-                principles = list(summaries.values())
-                hashes = {
-                    principle: get_vote_hash(
-                        preferred=preferred,
-                        rejected=rejected,
-                        principle=principle,
-                        model_name=model_name,
-                    )
-                    for principle in principles
-                }
+            all_hashes_in_cache = True
+            for hash_str in hashes.values():
+                if hash_str not in initial_cached_votes:
+                    all_hashes_in_cache = False
+                    break
 
-                all_hashes_in_cache = True
-                for hash_str in hashes.values():
-                    if hash_str not in initial_cached_votes:
-                        all_hashes_in_cache = False
-                        break
+            if all_hashes_in_cache:
+                await asyncio.sleep(0.1)
+                return {h: initial_cached_votes[h] for h in hashes.values()}
 
-                if all_hashes_in_cache:
-                    await asyncio.sleep(0.1)
-                    return {h: initial_cached_votes[h] for h in hashes.values()}
+            vote = await get_preference_vote_for_single_text(
+                prompt=inverse_cai.algorithm.utils.get_prompt_from_row(row),
+                preferred_sample=preferred,
+                rejected_sample=rejected,
+                principles=principles,
+                model_name=model_name,
+                config=config,
+                is_prompt_principles=is_prompt_principles,
+            )
 
-                vote = await get_preference_vote_for_single_text(
-                    preferred_sample=preferred,
-                    rejected_sample=rejected,
-                    principles=principles,
-                    model_name=model_name,
-                    config=config,
-                )
-
-                # Update cache
-                hashed_vote = {
-                    hash_str: vote.get(principle, "invalid")
-                    for principle, hash_str in hashes.items()
-                }
-                for hash_str, vote_value in hashed_vote.items():
-                    vote_cache.update_cache(hash_str, vote_value)
+            # Update cache
+            hashed_vote = {
+                hash_str: vote.get(principle, "invalid")
+                for principle, hash_str in hashes.items()
+            }
+            for hash_str, vote_value in hashed_vote.items():
+                vote_cache.update_cache(hash_str, vote_value)
 
             return hashed_vote
 
@@ -299,87 +273,105 @@ async def run_pass_to_get_votes_for_principles(
     return full_votes
 
 
-async def get_prompt_principle_vote_for_single_text(
+async def get_preference_vote_for_messages(
+    messages,
+    config: ExpConfig,
+    model_name: str,
+    numbered_principles: dict,
+    valid_values: dict,
+):
+    model = inverse_cai.models.get_model(model_name)
+
+    vote = None
+    try:
+        vote = (
+            await inverse_cai.algorithm.utils.run_with_http_retries(
+                model.ainvoke, messages
+            )
+        ).content
+        vote = parse_individual_pref_vote(
+            vote,
+            num_principles=len(numbered_principles),
+            valid_values=valid_values,
+        )
+
+    except Exception as e:
+        if vote is None:
+            logger.error("Failed to generate votes")
+        else:
+            logger.error(f"Failed to parse votes: {vote}")
+        logger.error(e)
+        vote = {i: "invalid" for i in range(len(numbered_principles))}
+
+    return {
+        numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles
+    }
+
+
+async def get_preference_vote_for_single_text(
     prompt,
-    summaries,
+    preferred_sample,
+    rejected_sample,
+    principles,
+    config: ExpConfig,
+    model_name: str,
+    is_prompt_principles: bool = False,
+):
+    if is_prompt_principles:
+        return await get_prompt_preference_vote_for_single_text(
+            prompt,
+            principles,
+            config,
+            model_name,
+        )
+    else:
+        return await get_response_preference_vote_for_single_text(
+            preferred_sample,
+            rejected_sample,
+            principles,
+            config,
+            model_name,
+        )
+
+
+async def get_prompt_preference_vote_for_single_text(
+    prompt,
+    principles,
     config: ExpConfig,
     model_name: str,
 ):
-    """
-    Given a dataframe of conversations, let the model votes according to each proposed principles.
-
-    Model output is formatted as json format, for each principle.
-
-    Note: preference-based voting require ast-based parsing here to ensure flipped
-    votes can be corrected for right away.
-    """
-
-    # map summary keys to integers
-    summary_key_mapping = {i: k for i, k in enumerate(summaries.keys())}
-    integer_summaries = {i: v for i, v in enumerate(summaries.values())}
+    numbered_principles = {i: v for i, v in enumerate(principles)}
 
     messages = inverse_cai.algorithm.utils.parse_prompt(
         prompt_str=config.alg_prompts.prompt_voting_prompt,
         prompt_kwargs=dict(
+            summaries=numbered_principles,
             prompt=prompt,
-            summaries=integer_summaries,
         ),
     )
-
-    model = inverse_cai.models.get_model(model_name)
-
-    sleep_time = 1  # simple exponential backoff
-    while True:
-        try:
-            vote = (await model.ainvoke(messages)).content
-            break
-        except Exception as e:
-            if "Error code: 429" in str(e):
-                logger.warning(f"Ratelimit error invoking model: {e}")
-                logger.warning(f"Sleeping for {sleep_time}s and trying again...")
-                await asyncio.sleep(sleep_time)
-                sleep_time *= 2
-            else:
-                logger.error(f"Error invoking model: {e}")
-                logger.error(f"Parsed messages: {messages}")
-                raise e
-
-    vote = parse_individual_pref_vote(
-        vote, num_principles=len(summaries), prompt_principles=True
+    return await get_preference_vote_for_messages(
+        messages,
+        config,
+        model_name,
+        numbered_principles,
+        valid_values={
+            "True": True,
+            "true": True,
+            True: True,
+            "False": False,
+            "false": False,
+            False: False,
+        },
     )
 
-    # change back to original keys
-    vote = {summary_key_mapping[k]: v for k, v in vote.items()}
 
-    # translate votes to correct/incorrect/invalid
-    updated_vote = {}
-    for key, value in vote.items():
-        if value in ["True", "true", True]:
-            updated_vote[key] = True
-        elif value in ["False", "false", False]:
-            updated_vote[key] = False
-        else:
-            updated_vote[key] = "invalid"
-
-    return updated_vote
-
-
-async def get_preference_vote_for_single_text(
+async def get_response_preference_vote_for_single_text(
     preferred_sample,
     rejected_sample,
     principles,
     config: ExpConfig,
     model_name: str,
 ):
-    """
-    Given a dataframe of conversations, let the model votes according to each proposed principles.
-
-    Model output is formatted as json format, for each principle.
-
-    Note: preference-based voting require ast-based parsing here to ensure flipped
-    votes can be corrected for right away.
-    """
-
     flipped = random.choice([True, False])
 
     if flipped:
@@ -398,50 +390,28 @@ async def get_preference_vote_for_single_text(
         ),
     )
 
-    model = inverse_cai.models.get_model(model_name)
-
-    sleep_time = 1  # simple exponential backoff
-    while True:
-        try:
-            vote = (await model.ainvoke(messages)).content
-            break
-        except Exception as e:
-            if "Error code: 429" in str(e):
-                logger.warning(f"Ratelimit error invoking model: {e}")
-                logger.warning(f"Sleeping for {sleep_time}s and trying again...")
-                await asyncio.sleep(sleep_time)
-                sleep_time *= 2
-            else:
-                logger.error(f"Error invoking model: {e}")
-                logger.error(f"Parsed messages: {messages}")
-                raise e
-
-    vote = parse_individual_pref_vote(vote, num_principles=len(principles))
-
-    # change back to original keys
-    vote = {numbered_principles[k]: v for k, v in vote.items()}
+    vote = await get_preference_vote_for_messages(
+        messages,
+        config,
+        model_name,
+        numbered_principles,
+        valid_values={
+            "A": True,
+            "B": False,
+            "Both": "Both",
+            "Neither": "Neither",
+            "None": None,
+            None: None,
+        },
+    )
 
     if flipped:
-        vote = {k: "A" if v == "B" else "B" if v == "A" else v for k, v in vote.items()}
+        vote = {k: (not v) if isinstance(v, bool) else v for k, v in vote.items()}
 
-    # translate votes to correct/incorrect/invalid
-    updated_vote = {}
-    for key, value in vote.items():
-        if value == "A":
-            updated_vote[key] = True
-        elif value == "B":
-            updated_vote[key] = False
-        elif value is None:
-            updated_vote[key] = None
-        elif value in ("Both", "Neither"):
-            updated_vote[key] = value
-        else:
-            updated_vote[key] = "invalid"
-
-    return updated_vote
+    return vote
 
 
-def parse_individual_pref_vote(vote, num_principles, prompt_principles=False):
+def parse_individual_pref_vote(vote, num_principles, valid_values):
     """
     Parse preference-based votes.
 
@@ -463,13 +433,11 @@ def parse_individual_pref_vote(vote, num_principles, prompt_principles=False):
             f"Vote length {len(vote_dict)} does not match number of principles {num_principles}"
         )
 
-    if prompt_principles:
-        valid = ["True", "False", "true", "false", True, False]
-    else:
-        valid = ["A", "B", "Both", "Neither", "None", None]
     for key, value in vote_dict.items():
-        if value not in valid:
-            logger.error(f"Vote value {value} is not in {valid}")
+        if value in valid_values:
+            vote_dict[key] = valid_values[value]
+        else:
+            logger.error(f"Vote value {value} is not in {list(valid_values.keys())}")
             vote_dict[key] = "invalid"
 
     return vote_dict

@@ -293,10 +293,10 @@ def run(cfg: DictConfig):
         parsed_prompt_votes = icai_loader.parse_raw_votes(results["raw_prompt_votes"])
         train_annotated_pairs = create_annotated_pairs(
             df=data,
-            principles=results["summaries"],
+            principle_index_to_text=results["summaries"],
             comparison_votes=parsed_votes,
-            non_preference_principles=results["prompt_summaries"],
-            non_preference_comparison_votes=parsed_prompt_votes,
+            nonpref_principle_index_to_text=results["prompt_summaries"],
+            nonpref_comparison_votes=parsed_prompt_votes,
             dataset_name=f"ICAI Training Dataset - {pathlib.Path(hydra_out_path).name}",
             auto_detect_annotators=True,
         )
@@ -350,7 +350,7 @@ def run(cfg: DictConfig):
                 model_name=cfg.alg_model,
                 cache_path=test_annotation_cache_path,
                 config=cfg,
-                prompt_principles=True,
+                is_prompt_principles=True,
                 max_concurrent_tasks=cfg.async_task_num,
                 num_seeds=cfg.s3_num_seeds_to_reannotate_with,
                 voting_method_cross_seed=cfg.s3_voting_method_cross_seed,
@@ -363,10 +363,10 @@ def run(cfg: DictConfig):
             parsed_prompt_votes = icai_loader.parse_raw_votes(raw_prompt_votes)
             test_annotated_pairs = create_annotated_pairs(
                 df=test_df,
-                principles=results["summaries"],
+                principle_index_to_text=results["summaries"],
                 comparison_votes=parsed_votes,
-                non_preference_principles=results["prompt_summaries"],
-                non_preference_comparison_votes=parsed_prompt_votes,
+                nonpref_principle_index_to_text=results["prompt_summaries"],
+                nonpref_comparison_votes=parsed_prompt_votes,
                 dataset_name=f"ICAI Test Dataset - {pathlib.Path(hydra_out_path).name}",
                 auto_detect_annotators=True,
             )

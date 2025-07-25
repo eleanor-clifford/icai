@@ -28,6 +28,7 @@ dependencies = [
   "hydra-core",
   "matplotlib",
   "setuptools", # for alpaca-eval
+  "backoff",
 ]
 
 [project.optional-dependencies]
