@@ -135,9 +135,9 @@ async def test_get_preference_vote_for_single_text_all_keys_present(mock_get_mod
     )
 
     assert set(result.keys()) == {
-        0,
-        1,
-        2,
+        "p1",
+        "p2",
+        "p3",
     }, "Not all keys from summaries are present in the result"
 
 
