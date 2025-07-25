@@ -29,9 +29,10 @@ async def test_get_preference_vote_for_single_text_flipped(
     mock_get_model.return_value = mock_model
 
     result = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        {1: "suma", 2: "sumb"},
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -54,9 +55,10 @@ async def test_get_preference_vote_for_single_text_not_flipped(
     mock_get_model.return_value = mock_model
 
     result = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        {1: "suma", 2: "sumb"},
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -79,9 +81,10 @@ async def test_get_preference_vote_for_single_text_invalid_vote(
     mock_get_model.return_value = mock_model
 
     return_val = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        {1: "suma", 2: "sumb"},
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -99,9 +102,10 @@ async def test_get_preference_vote_for_single_text_invalid_json(mock_get_model):
     mock_get_model.return_value = mock_model
 
     result = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        {1: "suma", 2: "sumb"},
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -121,18 +125,20 @@ async def test_get_preference_vote_for_single_text_all_keys_present(mock_get_mod
     mock_model.ainvoke.return_value = mock_response
     mock_get_model.return_value = mock_model
 
-    summaries = {1: "suma", 2: "sumb", 3: "sumc"}
     result = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        summaries,
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb", "sumc"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
 
-    assert set(result.keys()) == set(
-        summaries.keys()
-    ), "Not all keys from summaries are present in the result"
+    assert set(result.keys()) == {
+        0,
+        1,
+        2,
+    }, "Not all keys from summaries are present in the result"
 
 
 def test_clean_vote_json():
@@ -159,9 +165,10 @@ async def test_get_preference_vote_for_single_text_unexpected_values(mock_get_mo
     mock_get_model.return_value = mock_model
 
     result = await get_preference_vote_for_single_text(
-        "preferred_sample",
-        "rejected_sample",
-        {1: "suma", 2: "sumb"},
+        prompt="prompt",
+        preferred_sample="preferred_sample",
+        rejected_sample="rejected_sample",
+        principles=["suma", "sumb"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -174,37 +181,61 @@ async def test_get_preference_vote_for_single_text_unexpected_values(mock_get_mo
 def test_parse_individual_pref_vote():
     """Test parsing of individual preference votes from JSON responses."""
 
+    # Define valid values for A/B voting
+    valid_values = {
+        "A": "A",
+        "B": "B",
+        "Both": "Both",
+        "Neither": "Neither",
+        "None": None,
+        None: None,
+    }
+
     # Test valid JSON votes
-    assert parse_individual_pref_vote('{"1": "A", "2": "B"}', 2) == {
+    assert parse_individual_pref_vote(
+        vote='{"1": "A", "2": "B"}', num_principles=2, valid_values=valid_values
+    ) == {
         1: "A",
         2: "B",
     }, "Should correctly parse A/B votes"
 
     # Test invalid JSON format
-    assert parse_individual_pref_vote("invalid_json", 2) == {
+    assert parse_individual_pref_vote(
+        vote="invalid_json", num_principles=2, valid_values=valid_values
+    ) == {
         0: "invalid",
         1: "invalid",
     }, "Should mark invalid JSON as invalid votes"
 
     # Test missing keys
-    assert parse_individual_pref_vote('{"1": "A"}', 2) == {
+    assert parse_individual_pref_vote(
+        vote='{"1": "A"}', num_principles=2, valid_values=valid_values
+    ) == {
         1: "A",
     }, "Should parse partial votes"
 
     # Test invalid vote values
-    assert parse_individual_pref_vote('{"1": "C", "2": "D"}', 2) == {
+    assert parse_individual_pref_vote(
+        vote='{"1": "C", "2": "D"}', num_principles=2, valid_values=valid_values
+    ) == {
         1: "invalid",
         2: "invalid",
     }, "Should mark invalid vote values as 'invalid'"
 
     # Test with None values
-    assert parse_individual_pref_vote('{"1": "foo", "2": "A"}', 2) == {
+    assert parse_individual_pref_vote(
+        vote='{"1": "foo", "2": "A"}', num_principles=2, valid_values=valid_values
+    ) == {
         1: "invalid",
         2: "A",
     }, "Should handle null values"
 
     # Test with different summary lengths
-    assert parse_individual_pref_vote('{"1": "A", "2": "B", "3": "A"}', 3) == {
+    assert parse_individual_pref_vote(
+        vote='{"1": "A", "2": "B", "3": "A"}',
+        num_principles=3,
+        valid_values=valid_values,
+    ) == {
         1: "A",
         2: "B",
         3: "A",
