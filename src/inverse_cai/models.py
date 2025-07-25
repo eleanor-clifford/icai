@@ -227,6 +227,7 @@ class CachedEmbeddingsModel(CachedModel):
         # TODO: support other embeddings?
 
         super().__init__(cache_dir=f"exp/cache/models/{name}", **kwargs)
+        self.cached_sync_funcs = ("embed_documents",)
 
         openrouter = name.startswith("openrouter")
         openai_api_key = os.environ.get("OPENAI_API_KEY")
