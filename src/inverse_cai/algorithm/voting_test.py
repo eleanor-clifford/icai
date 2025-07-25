@@ -32,12 +32,12 @@ async def test_get_preference_vote_for_single_text_flipped(
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb"],
+        principles=["p1", "p2"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
 
-    assert result == {1: False, 2: True}
+    assert result == {"p1": False, "p2": True}
 
 
 @patch("inverse_cai.algorithm.voting.inverse_cai.models.get_model")
@@ -58,12 +58,12 @@ async def test_get_preference_vote_for_single_text_not_flipped(
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb"],
+        principles=["p1", "p2"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
 
-    assert result == {1: True, 2: False}
+    assert result == {"p1": True, "p2": False}
 
 
 @patch("inverse_cai.algorithm.voting.inverse_cai.models.get_model")
@@ -84,11 +84,11 @@ async def test_get_preference_vote_for_single_text_invalid_vote(
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb"],
+        principles=["p1", "p2"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
-    assert return_val == {1: "invalid", 2: None}
+    assert return_val == {"p1": "invalid", "p2": None}
 
 
 @patch("inverse_cai.algorithm.voting.inverse_cai.models.get_model")
@@ -105,7 +105,7 @@ async def test_get_preference_vote_for_single_text_invalid_json(mock_get_model):
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb"],
+        principles=["p1", "p2"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -129,7 +129,7 @@ async def test_get_preference_vote_for_single_text_all_keys_present(mock_get_mod
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb", "sumc"],
+        principles=["p1", "p2", "p3"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
@@ -168,7 +168,7 @@ async def test_get_preference_vote_for_single_text_unexpected_values(mock_get_mo
         prompt="prompt",
         preferred_sample="preferred_sample",
         rejected_sample="rejected_sample",
-        principles=["suma", "sumb"],
+        principles=["p1", "p2"],
         config=ExpConfig(),
         model_name="openai/gpt-4o-mini-2024-07-18",
     )
