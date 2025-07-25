@@ -235,7 +235,7 @@ def create_annotated_pairs(
     ) = None,
     additional_columns: List[str] = None,
     auto_detect_annotators: bool = True,
-    ignored_columns: tuple = ("principles", "prompt_principles")
+    ignored_columns: tuple = ("principles", "prompt_principles"),
 ) -> Dict:
     """Convert ICAI results to annotated pairs format using direct data inputs.
 
@@ -303,9 +303,9 @@ def create_annotated_pairs(
         col
         for col in df.columns
         if (
-            col not in standard_columns and
-            col not in all_additional_columns and
-            col not in ignored_columns
+            col not in standard_columns
+            and col not in all_additional_columns
+            and col not in ignored_columns
         )
     ]
 

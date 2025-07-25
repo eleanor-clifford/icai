@@ -284,7 +284,11 @@ async def get_preference_vote_for_messages(
 
     vote = None
     try:
-        vote = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+        vote = (
+            await inverse_cai.algorithm.utils.run_with_http_retries(
+                model.ainvoke, messages
+            )
+        ).content
         vote = parse_individual_pref_vote(
             vote,
             num_principles=len(numbered_principles),
@@ -299,7 +303,9 @@ async def get_preference_vote_for_messages(
         logger.error(e)
         vote = {i: "invalid" for i in range(len(numbered_principles))}
 
-    return {numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles}
+    return {
+        numbered_principles[k]: v for k, v in vote.items() if k in numbered_principles
+    }
 
 
 async def get_preference_vote_for_single_text(
@@ -313,11 +319,18 @@ async def get_preference_vote_for_single_text(
 ):
     if is_prompt_principles:
         return await get_prompt_preference_vote_for_single_text(
-            prompt, principles, config, model_name,
+            prompt,
+            principles,
+            config,
+            model_name,
         )
     else:
         return await get_response_preference_vote_for_single_text(
-            preferred_sample, rejected_sample, principles, config, model_name,
+            preferred_sample,
+            rejected_sample,
+            principles,
+            config,
+            model_name,
         )
 
 
@@ -334,17 +347,20 @@ async def get_prompt_preference_vote_for_single_text(
         prompt_kwargs=dict(
             summaries=numbered_principles,
             prompt=prompt,
-        )
+        ),
     )
     return await get_preference_vote_for_messages(
-        messages, config, model_name, numbered_principles,
+        messages,
+        config,
+        model_name,
+        numbered_principles,
         valid_values={
-            "True":   True,
-            "true":   True,
-            True:     True,
-            "False":  False,
-            "false":  False,
-            False:    False,
+            "True": True,
+            "true": True,
+            True: True,
+            "False": False,
+            "false": False,
+            False: False,
         },
     )
 
@@ -371,18 +387,21 @@ async def get_response_preference_vote_for_single_text(
             sample_a=sample_a,
             sample_b=sample_b,
             summaries=numbered_principles,
-        )
+        ),
     )
 
     vote = await get_preference_vote_for_messages(
-        messages, config, model_name, numbered_principles,
+        messages,
+        config,
+        model_name,
+        numbered_principles,
         valid_values={
-            "A":        True,
-            "B":        False,
-            "Both":     "Both",
-            "Neither":  "Neither",
-            "None":     None,
-            None:       None,
+            "A": True,
+            "B": False,
+            "Both": "Both",
+            "Neither": "Neither",
+            "None": None,
+            None: None,
         },
     )
 

@@ -101,7 +101,9 @@ def run(
         print("Prompt Principles:")
         print("\n".join(is_prompt_principles))
         save_to_json(principles, save_path / "011_principles_list.json")
-        save_to_json(is_prompt_principles, save_path / "016_prompt_principles_list.json")
+        save_to_json(
+            is_prompt_principles, save_path / "016_prompt_principles_list.json"
+        )
 
         ### STAGE 2: Cluster principles
         logger.info("Stage 2: Cluster principles")

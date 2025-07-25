@@ -164,25 +164,28 @@ async def generate_principles_from_single_ranking(
     model = inverse_cai.models.get_model(model_name)
     principless: list = []
 
-    for generator, kwargs, optional_kwargs in [ (
-        config.alg_prompts.generator_prompts,
-        dict(
-            preferred_sample=preferred_text,
-            rejected_sample=rejected_text,
-            num_principles=num_principles,
+    for generator, kwargs, optional_kwargs in [
+        (
+            config.alg_prompts.generator_prompts,
+            dict(
+                preferred_sample=preferred_text,
+                rejected_sample=rejected_text,
+                num_principles=num_principles,
+            ),
+            dict(),
         ),
-        dict()
-    ), (
-        config.alg_prompts.prompt_generator_prompts,
-        dict(
-            prompt=prompt,
-            num_principles=num_principles,
+        (
+            config.alg_prompts.prompt_generator_prompts,
+            dict(
+                prompt=prompt,
+                num_principles=num_principles,
+            ),
+            dict(
+                preferred_sample=preferred_text,
+                rejected_sample=rejected_text,
+            ),
         ),
-        dict(
-            preferred_sample=preferred_text,
-            rejected_sample=rejected_text,
-        ),
-    )]:
+    ]:
         principles = []
         for prompt in generator:
             messages = inverse_cai.algorithm.utils.parse_prompt(
@@ -193,7 +196,11 @@ async def generate_principles_from_single_ranking(
 
             # generate principles
             try:
-                principle_output = (await inverse_cai.algorithm.utils.run_with_http_retries(model.ainvoke, messages)).content
+                principle_output = (
+                    await inverse_cai.algorithm.utils.run_with_http_retries(
+                        model.ainvoke, messages
+                    )
+                ).content
             except Exception as e:
                 logger.error(f"Failed to generate principles")
                 logger.error(e)
@@ -202,7 +209,9 @@ async def generate_principles_from_single_ranking(
             try:
                 principle_output = clean_principle_str(principle_output)
                 parsed_output = ast.literal_eval(principle_output)
-                principles.extend(parsed_output.get("features") or parsed_output["principles"])
+                principles.extend(
+                    parsed_output.get("features") or parsed_output["principles"]
+                )
                 if len(principles) != num_principles:
                     logger.warning(
                         f"Generated a different number ({len(parsed_output)}) "

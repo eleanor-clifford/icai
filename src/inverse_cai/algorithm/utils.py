@@ -9,7 +9,9 @@ import logging
 import re
 
 
-def parse_prompt(prompt_str: str, prompt_kwargs, prompt_optional_kwargs={}) -> list[dict]:
+def parse_prompt(
+    prompt_str: str, prompt_kwargs, prompt_optional_kwargs={}
+) -> list[dict]:
     """Parse prompt str to list of messages."""
 
     # check kwargs in prompt_str and log warnings for unused keys
@@ -21,7 +23,7 @@ def parse_prompt(prompt_str: str, prompt_kwargs, prompt_optional_kwargs={}) -> l
     prompt_kwargs |= prompt_optional_kwargs
 
     # check prompt_str keys are in kwargs and log warnings for invalid keys
-    for m in re.finditer(r'{([^{} ]+)}', prompt_str):
+    for m in re.finditer(r"{([^{} ]+)}", prompt_str):
         key = m.group(1)
         if key not in prompt_kwargs:
             logger.error(f"Key '{key}' is not a valid key. Check your prompts.")
@@ -82,7 +84,7 @@ def get_prompt_from_two_samples(text_a, text_b) -> str:
             # TODO: there must be a neater way to do this
             logger.warning(
                 "ICAI doesn't know how to get prompts from this data: "
-                "there is no \"prompt\" column and it couldn't be figured "
+                'there is no "prompt" column and it couldn\'t be figured '
                 "out from text_a and text_b"
             )
             prompt_warned = True
@@ -121,7 +123,11 @@ def _get_http_code(err):
 
 
 def _get_error_message(err):
-    if isinstance(err, openai.APIStatusError) and isinstance(err.body, dict) and "message" in err.body:
+    if (
+        isinstance(err, openai.APIStatusError)
+        and isinstance(err.body, dict)
+        and "message" in err.body
+    ):
         return err.body["message"]
 
     if len(err.args) > 0 and isinstance(err.args[0], dict) and "message" in err.args[0]:
@@ -137,7 +143,7 @@ def _fatal_model_error(err):
 
     if code in (403,):
         # OpenAI returns this when it moderates
-        logger.warning(f'403 Forbidden: {_get_error_message(err)}')
+        logger.warning(f"403 Forbidden: {_get_error_message(err)}")
         return False
     elif code in (408, 420, 429, 444, 498, 499):
         # 4xx client errors
