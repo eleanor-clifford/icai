@@ -437,7 +437,7 @@ def parse_individual_pref_vote(vote, num_principles, valid_values):
         if value in valid_values:
             vote_dict[key] = valid_values[value]
         else:
-            logger.error(f"Vote value {value} is not in {list(valid.keys())}")
+            logger.error(f"Vote value {value} is not in {list(valid_values.keys())}")
             vote_dict[key] = "invalid"
 
     return vote_dict
