@@ -295,8 +295,8 @@ def run(cfg: DictConfig):
             df=data,
             principles=results["summaries"],
             comparison_votes=parsed_votes,
-            non_preference_principles=results["prompt_summaries"],
-            non_preference_comparison_votes=parsed_prompt_votes,
+            nonpref_principles=results["prompt_summaries"],
+            nonpref_comparison_votes=parsed_prompt_votes,
             dataset_name=f"ICAI Training Dataset - {pathlib.Path(hydra_out_path).name}",
             auto_detect_annotators=True,
         )
@@ -365,8 +365,8 @@ def run(cfg: DictConfig):
                 df=test_df,
                 principles=results["summaries"],
                 comparison_votes=parsed_votes,
-                non_preference_principles=results["prompt_summaries"],
-                non_preference_comparison_votes=parsed_prompt_votes,
+                nonpref_principles=results["prompt_summaries"],
+                nonpref_comparison_votes=parsed_prompt_votes,
                 dataset_name=f"ICAI Test Dataset - {pathlib.Path(hydra_out_path).name}",
                 auto_detect_annotators=True,
             )
