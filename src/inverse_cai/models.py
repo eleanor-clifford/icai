@@ -32,9 +32,7 @@ OPENROUTER_HEADERS = {
 
 
 def serializable(obj):
-    if obj is None:
-        return None
-    elif isinstance(obj, Union[str, int, float, bool]):
+    if isinstance(obj, Union[str, int, float, bool, type(None)]):
         return obj
     elif isinstance(obj, Sequence):
         return tuple(serializable(x) for x in obj)
