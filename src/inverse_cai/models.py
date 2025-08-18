@@ -32,7 +32,9 @@ OPENROUTER_HEADERS = {
 
 
 def serializable(obj):
-    if isinstance(obj, Union[str, int, float]):
+    if obj is None:
+        return None
+    elif isinstance(obj, Union[str, int, float, bool]):
         return obj
     elif isinstance(obj, Sequence):
         return tuple(serializable(x) for x in obj)
@@ -66,7 +68,7 @@ def partial_hash(obj):
     elif isinstance(obj, Sequence):
         return tuple(partial_hash(x) for x in obj)
     elif isinstance(obj, Mapping):
-        return frozendict({k: partial_hash(v) for k, v in obj.items()})
+        return {k: partial_hash(v) for k, v in obj.items()}
     else:
         return f"hash:{hash_obj(obj)[:8]}"
 
@@ -118,7 +120,7 @@ class CachedModel:
 
         if result is None:
             logger.debug(f"cache {self.seed} miss ({h[:8]})")
-            result = self.model.__getattr__(func)(*args, **kwargs)
+            result = getattr(self.model, func)(*args, **kwargs)
 
             if asyncio.iscoroutine(result):
                 result = await result
