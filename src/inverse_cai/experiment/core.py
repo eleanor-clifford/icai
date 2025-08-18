@@ -288,21 +288,24 @@ def run(cfg: DictConfig):
         constitution = results["constitution"]
 
         # Generate annotated pairs format
-        ap_output_file = results_path / "070_annotations_train_ap.json"
-        parsed_votes = icai_loader.parse_raw_votes(results["raw_votes"])
-        parsed_prompt_votes = icai_loader.parse_raw_votes(results["raw_prompt_votes"])
-        train_annotated_pairs = create_annotated_pairs(
-            df=data,
-            principle_index_to_text=results["summaries"],
-            comparison_votes=parsed_votes,
-            nonpref_principle_index_to_text=results["prompt_summaries"],
-            nonpref_comparison_votes=parsed_prompt_votes,
-            dataset_name=f"ICAI Training Dataset - {pathlib.Path(hydra_out_path).name}",
-            auto_detect_annotators=True,
-        )
-        save_annotated_pairs_to_file(train_annotated_pairs, ap_output_file)
-        ap_paths.append(ap_output_file)
-        logger.info(f"Generated annotated pairs format at {ap_output_file}")
+        if results.get("raw_votes") is not None:
+            ap_output_file = results_path / "070_annotations_train_ap.json"
+            parsed_votes = icai_loader.parse_raw_votes(results["raw_votes"])
+            parsed_prompt_votes = icai_loader.parse_raw_votes(
+                results["raw_prompt_votes"]
+            )
+            train_annotated_pairs = create_annotated_pairs(
+                df=data,
+                principle_index_to_text=results["summaries"],
+                comparison_votes=parsed_votes,
+                nonpref_principle_index_to_text=results["prompt_summaries"],
+                nonpref_comparison_votes=parsed_prompt_votes,
+                dataset_name=f"ICAI Training Dataset - {pathlib.Path(hydra_out_path).name}",
+                auto_detect_annotators=True,
+            )
+            save_annotated_pairs_to_file(train_annotated_pairs, ap_output_file)
+            ap_paths.append(ap_output_file)
+            logger.info(f"Generated annotated pairs format at {ap_output_file}")
     else:
         logger.warning(
             "Running LLM annotation on dataset without generating a new constitution"
