@@ -144,6 +144,7 @@ async def generate_principles_from_single_ranking(
     num_principles,
     model_name: str,
     config: ExpConfig,
+    generate_prompt_principles: bool = True,
 ) -> list:
     """
     Generate principles from a single ranking.
@@ -164,7 +165,7 @@ async def generate_principles_from_single_ranking(
     model = inverse_cai.models.get_model(model_name)
     principless: list = []
 
-    for generator, kwargs, optional_kwargs in [
+    runners = [
         (
             config.alg_prompts.generator_prompts,
             dict(
@@ -173,19 +174,24 @@ async def generate_principles_from_single_ranking(
                 num_principles=num_principles,
             ),
             dict(),
-        ),
-        (
-            config.alg_prompts.prompt_generator_prompts,
-            dict(
-                prompt=prompt,
-                num_principles=num_principles,
-            ),
-            dict(
-                preferred_sample=preferred_text,
-                rejected_sample=rejected_text,
-            ),
-        ),
-    ]:
+        )
+    ]
+    if generate_prompt_principles:
+        runners.append(
+            (
+                config.alg_prompts.prompt_generator_prompts,
+                dict(
+                    prompt=prompt,
+                    num_principles=num_principles,
+                ),
+                dict(
+                    preferred_sample=preferred_text,
+                    rejected_sample=rejected_text,
+                ),
+            )
+        )
+
+    for generator, kwargs, optional_kwargs in runners:
         principles = []
         for prompt in generator:
             messages = inverse_cai.algorithm.utils.parse_prompt(
@@ -204,6 +210,7 @@ async def generate_principles_from_single_ranking(
             except Exception as e:
                 logger.error(f"Failed to generate principles")
                 logger.error(e)
+                continue
 
             # parse the principles
             try:
