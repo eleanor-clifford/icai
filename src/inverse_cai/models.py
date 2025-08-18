@@ -1,7 +1,6 @@
 from typing import Any, Sequence, Mapping, Union
 from functools import partial
 import json
-from frozendict import frozendict
 from filelock import FileLock
 
 import asyncio
@@ -38,7 +37,7 @@ def serializable(obj):
     elif isinstance(obj, Sequence):
         return tuple(serializable(x) for x in obj)
     elif isinstance(obj, Mapping):
-        return frozendict({k: serializable(v) for k, v in obj.items()})
+        return {k: serializable(v) for k, v in obj.items()}
     elif isinstance(obj, langchain_core.messages.base.BaseMessage):
         return serializable(langchain_core.messages.base.message_to_dict(obj))
     else:
