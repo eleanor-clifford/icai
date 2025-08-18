@@ -11,6 +11,7 @@ import os
 import os.path
 import hashlib
 
+from functools import lru_cache
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain_community.callbacks import get_openai_callback
@@ -71,38 +72,27 @@ def partial_hash(obj):
         return f"hash:{hash_obj(obj)[:8]}"
 
 
-class CachedModel:
-
-    def __init__(self, cache_dir, seed=0):
+class CachedObject:
+    def __init__(self, obj, cache_dir, cached_funcs, seed=0):
+        self.obj = obj
         self.cache_dir = cache_dir
-        self.cache = None
-        self.cached_sync_funcs = tuple()
-        self.cached_async_funcs = tuple()
+        self.cached_funcs = cached_funcs
         self.seed = seed
 
-    @property
-    def cache_path(self):
-        return f"{self.cache_dir}/{self.seed}.pkl"
+    def cache_key_path(self, key):
+        return f"{self.cache_dir}/{self.seed}/{key}.pkl"
 
-    def load_cache(self):
-        try:
-            with open(self.cache_path, "rb") as cache_file:
-                file_cache = pickle.load(cache_file)
-        except (FileNotFoundError, EOFError):
-            file_cache = {}
+    @lru_cache(maxsize=128)
+    def get_from_cache(self, key):
+        if os.path.isfile(self.cache_key_path(key)):
+            with open(self.cache_key_path(key), "rb") as cache_file:
+                return pickle.load(cache_file)
 
-        if self.cache is None:
-            self.cache = {}
+        return None
 
-        self.cache = file_cache | self.cache
-
-    def save_cache(self):
-        os.makedirs(self.cache_dir, exist_ok=True)
-
-        with FileLock(self.cache_path + ".lock"):
-            self.load_cache()
-            with open(self.cache_path, "wb") as cache_file:
-                pickle.dump(self.cache, cache_file)
+    def save_to_cache(self, key, value):
+        with open(self.cache_key_path(key), "wb") as cache_file:
+            pickle.dump(value, cache_file)
 
     @staticmethod
     async def _arun(coroutine):
@@ -110,22 +100,17 @@ class CachedModel:
         return coroutine
 
     async def async_cache_run(self, func: str, *args, **kwargs):
-        if self.cache is None:
-            self.load_cache()
-
         h = hash_obj((func, args, kwargs))
-        result = self.cache.get(h)
+        result = self.get_from_cache(h)
 
         if result is None:
             logger.debug(f"cache {self.seed} miss ({h[:8]})")
-            result = getattr(self.model, func)(*args, **kwargs)
+            result = getattr(self.obj, func)(*args, **kwargs)
 
             if asyncio.iscoroutine(result):
                 result = await result
 
-            self.cache[h] = result
-            self.save_cache()
-
+            self.save_to_cache(h, result)
         else:
             logger.debug(f"cache {self.seed} hit ({h[:8]})")
 
@@ -135,121 +120,122 @@ class CachedModel:
         return asyncio.run(self.async_cache_run(*args, **kwargs))
 
     def __getattr__(self, attr):
-        if attr in self.cached_async_funcs:
-            return partial(self.async_cache_run, attr)
-        elif attr in self.cached_sync_funcs:
-            return partial(self.cache_run, attr)
+        if attr in self.cached_funcs:
+            if asyncio.iscoroutinefunction(getattr(self.obj, attr)):
+                return partial(self.async_cache_run, attr)
+            else:
+                return partial(self.cache_run, attr)
         else:
-            return self.model.__getattr__(attr)
+            return self.obj.__getattr__(attr)
 
 
-class CachedLLM(CachedModel):
-    def __init__(
-        self,
-        name: str,
-        temp: float = 0.0,
-        enable_logprobs: bool = False,
-        max_tokens: int = 1000,
-        **kwargs,
-    ) -> Any:
-        """Get a language model instance.
+def get_model(
+    name: str,
+    temp: float = 0.0,
+    enable_logprobs: bool = False,
+    max_tokens: int = 1000,
+    cache: bool = True,
+    cache_seed: int = 0,
+) -> Any:
+    """Get a language model instance.
 
-        Args:
-            name: Model name with provider prefix (e.g. "openai/gpt-4o-2024-05-13")
-            temp: Temperature for generation (default: 0.0)
-            enable_logprobs: Whether to enable logprobs for token probabilities (default: False)
-            max_tokens: Maximum tokens to generate (default: 1000)
+    Args:
+        name: Model name with provider prefix (e.g. "openai/gpt-4o-2024-05-13")
+        temp: Temperature for generation (default: 0.0)
+        enable_logprobs: Whether to enable logprobs for token probabilities (default: False)
+        max_tokens: Maximum tokens to generate (default: 1000)
+        cache: enable model cache
 
-        Returns:
-            CachedModel-wrapped LogWrapper-wrapped language model instance
-        """
-        super().__init__(
-            cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}",
-            **kwargs,
+    Returns:
+        (possibly CachedObject-wrapped) LogWrapper-wrapped language model instance
+    """
+    if enable_logprobs:
+        model_kwargs = {"logprobs": True, "top_logprobs": 10}
+    else:
+        model_kwargs = {}
+
+    if name.startswith("openai"):
+        model = ChatOpenAI(
+            model=name.split("/")[1],
+            max_tokens=max_tokens,
+            temperature=temp,
+            model_kwargs=model_kwargs,
         )
-        self.cached_sync_funcs = ("invoke",)
-        self.cached_async_funcs = ("ainvoke",)
 
-        if enable_logprobs:
-            model_kwargs = {"logprobs": True, "top_logprobs": 10}
-        else:
-            model_kwargs = {}
+    elif name.startswith("anthropic"):
+        model = ChatAnthropic(
+            model=name.split("/")[1],
+            max_tokens=max_tokens,
+            temperature=temp,
+            model_kwargs=model_kwargs,
+        )
 
-        if name.startswith("openai"):
-            self.model = ChatOpenAI(
-                model=name.split("/")[1],
-                max_tokens=max_tokens,
-                temperature=temp,
-                model_kwargs=model_kwargs,
-            )
-
-        if name.startswith("anthropic"):
-            self.model = ChatAnthropic(
-                model=name.split("/")[1],
-                max_tokens=max_tokens,
-                temperature=temp,
-                model_kwargs=model_kwargs,
-            )
-
-        if name.startswith("openrouter"):
-
-            # Extract the actual model from openrouter/provider/model format
-            parts = name.split("/", 2)
-            if len(parts) < 3:
-                raise ValueError(
-                    "OpenRouter model format should be 'openrouter/provider/model'"
-                )
-
-            # Use the provider/model as the model name for OpenRouter
-            model_id = "/".join(parts[1:])
-
-            # Get the OpenRouter API key from environment variable
-            openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
-            if not openrouter_api_key:
-                raise ValueError(
-                    "OPENROUTER_API_KEY environment variable must be set for OpenRouter models"
-                )
-
-            self.model = ChatOpenAI(
-                model=model_id,
-                max_tokens=max_tokens,
-                temperature=temp,
-                openai_api_key=openrouter_api_key,  # Use the OpenRouter API key
-                openai_api_base="https://openrouter.ai/api/v1",
-                default_headers=OPENROUTER_HEADERS,
-                model_kwargs=model_kwargs,
-            )
-
-
-class CachedEmbeddingsModel(CachedModel):
-    def __init__(
-        self,
-        name: str,
-        **kwargs,
-    ):
-        # TODO: support other embeddings?
-
-        super().__init__(cache_dir=f"exp/cache/models/{name}", **kwargs)
-        self.cached_sync_funcs = ("embed_documents",)
-
-        openrouter = name.startswith("openrouter")
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-
-        if openrouter and not openai_api_key:
+    elif name.startswith("openrouter"):
+        # Extract the actual model from openrouter/provider/model format
+        parts = name.split("/", 2)
+        if len(parts) < 3:
             raise ValueError(
-                "OpenRouter doesn't support embedding models, OPENAI_API_KEY still required"
+                "OpenRouter model format should be 'openrouter/provider/model'"
             )
 
-        self.model = OpenAIEmbeddings()
+        # Use the provider/model as the model name for OpenRouter
+        model_id = "/".join(parts[1:])
+
+        # Get the OpenRouter API key from environment variable
+        openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not openrouter_api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY environment variable must be set for OpenRouter models"
+            )
+
+        model = ChatOpenAI(
+            model=model_id,
+            max_tokens=max_tokens,
+            temperature=temp,
+            openai_api_key=openrouter_api_key,  # Use the OpenRouter API key
+            openai_api_base="https://openrouter.ai/api/v1",
+            default_headers=OPENROUTER_HEADERS,
+            model_kwargs=model_kwargs,
+        )
+    else:
+        raise ValueError(f"{name} is not a recognised model name")
+
+    if cache:
+        model = CachedObject(
+            model,
+            cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}",
+            cached_funcs=("invoke", "ainvoke"),
+            seed=cache_seed,
+        )
+
+    return model
 
 
-# compatibility
-def get_model(*args, **kwargs):
-    return CachedLLM(*args, **kwargs)
+def get_embeddings_model(
+    self,
+    name: str,
+    cache: bool = True,
+    cache_seed: int = 0,
+):
+    openrouter = name.startswith("openrouter")
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
 
+    if openrouter and not openai_api_key:
+        raise ValueError(
+            "OpenRouter doesn't support embedding models, OPENAI_API_KEY still required"
+        )
 
-def get_embeddings_model(*args, **kwargs):
-    return CachedEmbeddingsModel(*args, **kwargs)
+    model = OpenAIEmbeddings()
+
+    if cache:
+        model = CachedObject(
+            model,
+            cache_dir=f"exp/cache/models/{name}",
+            cached_funcs=("embed_documents",),
+            seed=cache_seed,
+        )
+
+    return model
 
 
 def get_token_probs(tokens: list[str], model: str, messages: list) -> dict[float]:
