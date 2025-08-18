@@ -213,7 +213,13 @@ async def run_pass_to_get_votes_for_principles(
 
     # Function to process each row
     async def process_row(
-        index, row, summaries, model_name, config, initial_cached_votes, function_seed,
+        index,
+        row,
+        summaries,
+        model_name,
+        config,
+        initial_cached_votes,
+        function_seed,
     ):
         async with semaphore:
             preferred = get_preferred_text(row)
@@ -265,7 +271,15 @@ async def run_pass_to_get_votes_for_principles(
     # Create async tasks for parallel processing
     tasks = [
         # these functions will run out of order, so we pass in a deterministic seed for repeatability
-        process_row(index, row, summaries, model_name, config, initial_cached_votes, np.random.randint(0, 2**32))
+        process_row(
+            index,
+            row,
+            summaries,
+            model_name,
+            config,
+            initial_cached_votes,
+            np.random.randint(0, 2**32),
+        )
         for index, row in feedback_df.iterrows()
     ]
 
@@ -343,8 +357,8 @@ async def get_prompt_preference_vote_for_single_text(
     principles,
     config: ExpConfig,
     model_name: str,
-    function_seed = 0,
-    model_seed = 0,
+    function_seed=0,
+    model_seed=0,
 ):
     numbered_principles = {i: v for i, v in enumerate(principles)}
 
@@ -377,8 +391,8 @@ async def get_response_preference_vote_for_single_text(
     principles,
     config: ExpConfig,
     model_name: str,
-    function_seed = 0,
-    model_seed = 0,
+    function_seed=0,
+    model_seed=0,
 ):
     rng = np.random.default_rng(function_seed)
     flipped = rng.choice([True, False])

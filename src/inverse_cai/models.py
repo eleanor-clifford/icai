@@ -42,7 +42,9 @@ def serializable(obj):
     elif isinstance(obj, langchain_core.messages.base.BaseMessage):
         return serializable(langchain_core.messages.base.message_to_dict(obj))
     else:
-        logger.warning(f"{obj} ({type(obj).__name__}) is not serializable, converting to string for cache key")
+        logger.warning(
+            f"{obj} ({type(obj).__name__}) is not serializable, converting to string for cache key"
+        )
         return str(obj)
 
 
@@ -151,7 +153,6 @@ class CachedLLM(CachedModel):
         max_tokens: int = 1000,
         **kwargs,
     ) -> Any:
-
         """Get a language model instance.
 
         Args:
@@ -163,7 +164,10 @@ class CachedLLM(CachedModel):
         Returns:
             CachedModel-wrapped LogWrapper-wrapped language model instance
         """
-        super().__init__(cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}", **kwargs)
+        super().__init__(
+            cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}",
+            **kwargs,
+        )
         self.cached_sync_funcs = ("invoke",)
         self.cached_async_funcs = ("ainvoke",)
 
@@ -243,6 +247,7 @@ class CachedEmbeddingsModel(CachedModel):
 # compatibility
 def get_model(*args, **kwargs):
     return CachedLLM(*args, **kwargs)
+
 
 def get_embeddings_model(*args, **kwargs):
     return CachedEmbeddingsModel(*args, **kwargs)
