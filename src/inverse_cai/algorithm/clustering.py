@@ -150,7 +150,7 @@ def summarize_cluster(
         ),
     )
 
-    model = inverse_cai.models.get_model(model_name)
+    model = inverse_cai.models.get_model(model_name, cache_seed=config.random_seed)
 
     summary = model.invoke(messages).content
     return summary

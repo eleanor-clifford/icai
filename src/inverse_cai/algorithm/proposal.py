@@ -166,7 +166,7 @@ async def generate_principles_from_single_ranking(
     # out of order. If it does need to, a seed must be carefully passed in.
 
     # get the model
-    model = inverse_cai.models.get_model(model_name)
+    model = inverse_cai.models.get_model(model_name, cache_seed=config.random_seed)
     principless: list = []
 
     runners = [

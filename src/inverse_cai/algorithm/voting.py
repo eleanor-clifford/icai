@@ -301,7 +301,7 @@ async def get_preference_vote_for_messages(
     valid_values: dict,
     model_seed: int = 0,
 ):
-    model = inverse_cai.models.get_model(model_name, seed=model_seed)
+    model = inverse_cai.models.get_model(model_name, cache_seed=model_seed)
 
     vote = None
     try:
