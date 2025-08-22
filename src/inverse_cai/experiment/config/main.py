@@ -213,6 +213,9 @@ class ExpConfig:
     s3_ratio_of_max_principles_to_cluster_again: float = (
         1.5  # proportion of max_principles to sample from filtered principle to then cluster again (until finally getting max principles)
     )
+    # Whether to skip prompt principle generation entirely
+    # (will create empty prompt principles list)
+    s3_skip_prompt_principle_generation: bool = True
 
     # Stage 9: AI judgment
     annotator: Optional[AnnotatorConfig] = field(default_factory=AnnotatorConfig)

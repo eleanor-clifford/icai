@@ -164,6 +164,12 @@ async def generate_principles_from_single_ranking(
     model = inverse_cai.models.get_model(model_name)
     principless: list = []
 
+    # Allows disabling prompt principle generation entirely
+    if config.s3_skip_prompt_principle_generation:
+        prompt_generator_prompts = []
+    else:
+        prompt_generator_prompts = config.alg_prompts.prompt_generator_prompts
+
     for generator, kwargs, optional_kwargs in [
         (
             config.alg_prompts.generator_prompts,
@@ -175,7 +181,7 @@ async def generate_principles_from_single_ranking(
             dict(),
         ),
         (
-            config.alg_prompts.prompt_generator_prompts,
+            prompt_generator_prompts,
             dict(
                 prompt=prompt,
                 num_principles=num_principles,
