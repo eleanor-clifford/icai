@@ -287,7 +287,9 @@ async def get_preference_vote_for_messages(
     numbered_principles: dict,
     valid_values: dict,
 ):
-    model = inverse_cai.models.get_model(model_name)
+    model = inverse_cai.models.get_model(
+        model_name, max_tokens=config.s3_voting_max_output_tokens
+    )
 
     vote = None
     try:
