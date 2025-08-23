@@ -287,15 +287,23 @@ async def get_preference_vote_for_messages(
     numbered_principles: dict,
     valid_values: dict,
 ):
-    model = inverse_cai.models.get_model(model_name)
+    model = inverse_cai.models.get_model(
+        model_name, max_tokens=config.s3_voting_max_output_tokens
+    )
 
     vote = None
     try:
-        vote = (
-            await inverse_cai.algorithm.utils.run_with_http_retries(
-                model.ainvoke, messages
+        vote_full = await inverse_cai.algorithm.utils.run_with_http_retries(
+            model.ainvoke, messages
+        )
+        if vote_full.response_metadata.get("finish_reason") != "stop":
+            logger.warning(
+                f"Vote did not finish with 'stop' reason, instead with '{vote_full.response_metadata.get('finish_reason')}' reason. "
+                f"This is not expected and will likely lead to invalid votes."
+                f"For thinking models, this is likely because you need to allow more output tokens."
+                f"\nFull vote response: {vote_full}."
             )
-        ).content
+        vote = vote_full.content
         vote = parse_individual_pref_vote(
             vote,
             num_principles=len(numbered_principles),

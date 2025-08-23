@@ -92,6 +92,8 @@ def _load_from_ap_json(
                 "prompt": comparison["prompt"],
                 "text_a": comparison["response_a"]["text"],
                 "text_b": comparison["response_b"]["text"],
+                "model_a": comparison["response_a"].get("model", None),
+                "model_b": comparison["response_b"].get("model", None),
                 "preferred_text": pref_text,
             }
         )
