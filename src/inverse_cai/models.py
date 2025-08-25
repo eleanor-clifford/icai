@@ -79,8 +79,12 @@ class CachedObject:
         self.cached_funcs = cached_funcs
         self.seed = seed
 
+    @property
+    def cache_seed_path(self):
+        return f"{self.cache_dir}/{self.seed}"
+
     def cache_key_path(self, key):
-        return f"{self.cache_dir}/{self.seed}/{key}.pkl"
+        return f"{self.cache_seed_path}/{key}.pkl"
 
     @lru_cache(maxsize=128)
     def get_from_cache(self, key):
@@ -91,8 +95,13 @@ class CachedObject:
         return None
 
     def save_to_cache(self, key, value):
-        with open(self.cache_key_path(key), "wb") as cache_file:
-            pickle.dump(value, cache_file)
+        try:
+            with open(self.cache_key_path(key), "wb") as cache_file:
+                pickle.dump(value, cache_file)
+        except FileNotFoundError:
+            # using try-except means os.makedirs will only be run once at most
+            os.makedirs(self.cache_seed_path, exist_ok=True)
+            return self.save_to_cache(key, value)
 
     @staticmethod
     async def _arun(coroutine):
