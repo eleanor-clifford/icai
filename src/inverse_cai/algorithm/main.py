@@ -2,6 +2,7 @@ from loguru import logger
 import pandas as pd
 import random
 import shutil
+import numpy as np
 from pathlib import Path
 
 from inverse_cai.algorithm.clustering import (
