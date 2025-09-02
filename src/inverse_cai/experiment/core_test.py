@@ -12,14 +12,17 @@ TEST_API_MODEL = "openrouter/openai/gpt-4o-mini-2024-07-18"
 @pytest.mark.parametrize(
     "additional_args",
     [
-        [],
+        ["data_path=data/processed/example/example.csv"],
+        ["data_path=data/processed/example/example_ap.json"],
         [
+            "data_path=data/processed/example/example.csv",
             "s0_added_principles_to_test=[test_principle1,test_principle2]",
             "s0_added_standard_principles_to_test=[v1,v2]",
             "annotator.fn_annotators=[{function:'inverse_cai.annotators.dummy.annotate_perfectly'}]",
         ],
         [
             # test that uses ICAI for Feedback Forensics use-case
+            "data_path=data/processed/example/example.csv",
             "s0_added_standard_principles_to_test=[v4]",
             "annotator.skip=true",
             "s0_skip_principle_generation=true",
@@ -31,7 +34,6 @@ def test_cli_minimal_experiment(additional_args: list[str]):
     # Run the CLI command in a subprocess
     cmd = [
         "icai-exp",
-        "data_path=data/processed/example/example.csv",
         f"alg_model={TEST_API_MODEL}",
         *additional_args,
     ]

@@ -204,6 +204,7 @@ class ExpConfig:
         3  # how often to re-annotate the same data to combine into final vote
     )
     s3_voting_method_cross_seed: str = "unanimous"  # one of "majority", "unanimous"
+    s3_voting_max_output_tokens: int = 3000
     s3_filter_majority_true: bool = True
     s3_filter_majority_relevant: bool = False
     s3_filter_majority_valid: bool = True
@@ -215,6 +216,9 @@ class ExpConfig:
     s3_ratio_of_max_principles_to_cluster_again: float = (
         1.5  # proportion of max_principles to sample from filtered principle to then cluster again (until finally getting max principles)
     )
+    # Whether to skip prompt principle generation entirely
+    # (will create empty prompt principles list)
+    s3_skip_prompt_principle_generation: bool = True
 
     # Stage 9: AI judgment
     annotator: Optional[AnnotatorConfig] = field(default_factory=AnnotatorConfig)

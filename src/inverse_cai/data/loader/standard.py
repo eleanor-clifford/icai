@@ -1,6 +1,8 @@
 """Functions for loading standard preference data."""
 
 import pandas as pd
+import json
+import pathlib
 from loguru import logger
 
 REQUIRED_COLUMNS = ["text_a", "text_b"]
@@ -26,7 +28,7 @@ def switch_pref_labels_in_df(df):
 
 
 def load(
-    path: str, switch_labels: bool = False, merge_prompts: bool = True
+    path: str | pathlib.Path, switch_labels: bool = False, merge_prompts: bool = True
 ) -> pd.DataFrame:
     """
     Load the standard preference data from a CSV file.
@@ -35,8 +37,14 @@ def load(
         path (str): The path to the CSV file.
     """
 
-    # Load the CSV file
-    df = pd.read_csv(path)
+    path = pathlib.Path(path)
+
+    if path.suffix == ".csv":
+        df = pd.read_csv(path)
+    elif path.suffix == ".json":
+        df = _load_from_ap_json(path)
+    else:
+        raise ValueError(f"Unsupported file extension: {path.suffix}")
 
     # Check that the required columns are present
     missing_columns = set(REQUIRED_COLUMNS) - set(df.columns)
@@ -52,6 +60,49 @@ def load(
     if switch_labels:
         df = switch_pref_labels_in_df(df)
 
+    return df
+
+
+def _load_from_ap_json(
+    path: str,
+    force_pref_text_validation: bool = False,
+) -> pd.DataFrame:
+    """
+    Load the standard preference data from a AnnotatedPairs JSON file.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        ap_data = json.load(f)
+
+    default_annotator = ap_data["metadata"]["default_annotator"]
+
+    ap_version = ap_data["metadata"]["version"]
+    if ap_version in ["1.0"]:
+        raise ValueError(
+            f"Loading from AnnotatedPairs (AP) {ap_version} is currently not supported, only from AP v2.0 or higher."
+        )
+
+    # Transform from AnnotatedPairs JSON format to simple CSV dataframe
+    rows = []
+    for comparison in ap_data["comparisons"]:
+        pref_text = comparison["annotations"].get(default_annotator, {}).get("pref")
+        pref_text = pref_text.replace("a", "text_a").replace("b", "text_b")
+        rows.append(
+            {
+                "id": comparison["id"],
+                "prompt": comparison["prompt"],
+                "text_a": comparison["response_a"]["text"],
+                "text_b": comparison["response_b"]["text"],
+                "model_a": comparison["response_a"].get("model", None),
+                "model_b": comparison["response_b"].get("model", None),
+                "preferred_text": pref_text,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    if force_pref_text_validation and df["preferred_text"].isna().all():
+        raise ValueError(
+            "No preferred text found during ICAI run, cannot generate principles (because no target)."
+        )
     return df
 
 

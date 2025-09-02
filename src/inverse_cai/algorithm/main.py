@@ -78,7 +78,7 @@ def run(
     if not config.s0_skip_principle_generation:
         ### STAGE 1: Generate principles from feedback
         logger.info("Stage 1: Generate principles from feedback")
-        feedback, principles, is_prompt_principles = generate_principles_from_feedback(
+        feedback, principles, prompt_principles = generate_principles_from_feedback(
             feedback=feedback,
             num_principles_per_sampling_step=num_principles_per_sampling_step,
             model_name=model_name,
@@ -100,11 +100,9 @@ def run(
         print("Principles:")
         print("\n".join(principles))
         print("Prompt Principles:")
-        print("\n".join(is_prompt_principles))
+        print("\n".join(prompt_principles))
         save_to_json(principles, save_path / "011_principles_list.json")
-        save_to_json(
-            is_prompt_principles, save_path / "016_prompt_principles_list.json"
-        )
+        save_to_json(prompt_principles, save_path / "016_prompt_principles_list.json")
 
         ### STAGE 2: Cluster principles
         logger.info("Stage 2: Cluster principles")
@@ -125,7 +123,7 @@ def run(
         print_clusters(clusters, summaries)
 
         prompt_clusters = cluster_principles(
-            is_prompt_principles,
+            prompt_principles,
             num_clusters=num_clusters,
             model_name=model_name,
             random_clusters=random_clusters,

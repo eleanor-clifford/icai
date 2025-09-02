@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "description": "Annotated pairs dataset with annotations from ICAI\n\nIncluding annotations by function annotators.",
+    "created_at": "2025-08-22T17:29:21Z",
+    "dataset_name": "ICAI Training Dataset - 2025-08-22_17-29-16_Dataset with annotations by evaluated annotators - training data",
+    "default_annotator": "ba751e7b",
+    "available_metadata_keys_per_comparison": [
+      "index"
+    ]
+  },
+  "annotators": {
+    "ba751e7b": {
+      "name": "preferred_text",
+      "description": "Default annotator from original dataset (from column `preferred_text`)",
+      "type": "unknown"
+    },
+    "2f45a6d0": {
+      "description": "Select the response that evokes a sense of mystery.",
+      "type": "principle"
+    },
+    "fafd12b9": {
+      "description": "Select the response that highlights a unique character trait.",
+      "type": "principle"
+    },
+    "435cef52": {
+      "description": "Select the response that features a more adventurous setting.",
+      "type": "principle"
+    }
+  },
+  "comparisons": [
+    {
+      "id": "4b49a6e7",
+      "prompt": "Write a short story about a pet.",
+      "response_a": {
+        "text": "In the heart of a bustling city, a sleek black cat named Shadow prowled the moonlit rooftops, her eyes gleaming with curiosity and mischief. She discovered a hidden garden atop an old apartment building, where she danced under the stars, chasing fireflies that glowed like tiny lanterns. As dawn painted the sky in hues of orange and pink, Shadow found her way back home, carrying the secret of the garden in her heart.",
+        "model": "Model X"
+      },
+      "response_b": {
+        "text": "Across the town, in a cozy neighborhood, a golden retriever named Buddy embarked on his daily adventure, tail wagging with uncontainable excitement. He found a lost toy under the bushes in the park, its colors faded and fabric worn, but to Buddy, it was a treasure untold. Returning home with his newfound prize, Buddy's joyful barks filled the air, reminding everyone in the house that happiness can be found in the simplest of things.",
+        "model": "Model Y"
+      },
+      "annotations": {
+        "ba751e7b": {
+          "pref": "a"
+        },
+        "2f45a6d0": {
+          "pref": "a"
+        },
+        "fafd12b9": {
+          "pref": null,
+          "no_pref_reason": "not_applicable"
+        },
+        "435cef52": {
+          "pref": "a"
+        }
+      },
+      "metadata": {
+        "index": "0"
+      }
+    }
+  ]
+}

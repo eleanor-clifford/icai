@@ -23,7 +23,7 @@ def get_votes_for_principles(
     summaries: dict,
     config: ExpConfig,
     model_name: str,
-    cache_path: Path,
+    cache_path: Path | None,
     max_concurrent_tasks: int,
     num_seeds: int,
     voting_method_cross_seed: Literal["majority", "unanimous"],
@@ -80,7 +80,10 @@ def get_votes_for_principles(
         logger.info(f"Running voting for seed {seed+1}/{num_seeds}.")
         for i, summary_part in enumerate(summaries_parts):
             logger.info(f"Starting pass {i+1}/{len(summaries_parts)}")
-            cache_path_seed = Path(f"{cache_path}_seed_{seed}")
+            if cache_path is not None:
+                cache_path_seed = Path(f"{cache_path}_seed_{seed}")
+            else:
+                cache_path_seed = None
             votes = asyncio.run(
                 run_pass_to_get_votes_for_principles(
                     feedback_df=feedback_df,
@@ -205,8 +208,11 @@ async def run_pass_to_get_votes_for_principles(
     feedback_df = feedback_df.copy()
     feedback_df["votes"] = None
 
-    vote_cache = VoteCache(cache_path)
-    initial_cached_votes = vote_cache.get_cached_votes()
+    if cache_path is not None:
+        vote_cache = VoteCache(cache_path)
+        initial_cached_votes = vote_cache.get_cached_votes()
+    else:
+        initial_cached_votes = {}
 
     # Create semaphore for controlling concurrency
     semaphore = asyncio.Semaphore(max_concurrent_tasks)
@@ -264,7 +270,8 @@ async def run_pass_to_get_votes_for_principles(
                 for principle, hash_str in hashes.items()
             }
             for hash_str, vote_value in hashed_vote.items():
-                vote_cache.update_cache(hash_str, vote_value)
+                if cache_path is not None:
+                    vote_cache.update_cache(hash_str, vote_value)
 
             return hashed_vote
 
@@ -301,15 +308,24 @@ async def get_preference_vote_for_messages(
     valid_values: dict,
     model_seed: int = 0,
 ):
-    model = inverse_cai.models.get_model(model_name, cache_seed=model_seed)
+    model = inverse_cai.models.get_model(
+        model_name, max_tokens=config.s3_voting_max_output_tokens,
+        cache_seed=model_seed,
+    )
 
     vote = None
     try:
-        vote = (
-            await inverse_cai.algorithm.utils.run_with_http_retries(
-                model.ainvoke, messages
+        vote_full = await inverse_cai.algorithm.utils.run_with_http_retries(
+            model.ainvoke, messages
+        )
+        if vote_full.response_metadata.get("finish_reason") != "stop":
+            logger.warning(
+                f"Vote did not finish with 'stop' reason, instead with '{vote_full.response_metadata.get('finish_reason')}' reason. "
+                f"This is not expected and will likely lead to invalid votes."
+                f"For thinking models, this is likely because you need to allow more output tokens."
+                f"\nFull vote response: {vote_full}."
             )
-        ).content
+        vote = vote_full.content
         vote = parse_individual_pref_vote(
             vote,
             num_principles=len(numbered_principles),
