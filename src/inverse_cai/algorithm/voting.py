@@ -398,6 +398,7 @@ async def get_prompt_preference_vote_for_single_text(
             "false": False,
             False: False,
         },
+        model_seed=model_seed,
     )
 
 
