@@ -1,8 +1,6 @@
 import ast
 import asyncio
-import random
 import time
-import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -346,7 +344,7 @@ async def get_preference_vote_for_single_text(
     model_name: str,
     config: ExpConfig,
     is_prompt_principles: bool = False,
-    function_seed: int = 0,
+    function_seed: int | None = None,
     model_seed: int = 0,
 ):
     shared_args = dict(
@@ -356,6 +354,7 @@ async def get_preference_vote_for_single_text(
             cache_seed=model_seed,
         ),
         voting_prompt = config.alg_prompts.prompt_voting_prompt,
+        function_seed = function_seed,
     )
 
     if is_prompt_principles:
@@ -376,8 +375,9 @@ async def get_prompt_preference_vote_for_single_text(
     principles,
     model,
     voting_prompt,
-    function_seed=0,
+    function_seed: int | None = None,
 ):
+    function_seed = function_seed or np.random.randint(0, 2**32)
     numbered_principles = {i: v for i, v in enumerate(principles)}
 
     messages = inverse_cai.algorithm.utils.parse_prompt(
@@ -409,8 +409,9 @@ async def get_response_preference_vote_for_single_text(
     principles,
     model,
     voting_prompt,
-    function_seed=0,
+    function_seed: int | None = None,
 ):
+    function_seed = function_seed or np.random.randint(0, 2**32)
     rng = np.random.default_rng(function_seed)
     flipped = rng.choice([True, False])
 
