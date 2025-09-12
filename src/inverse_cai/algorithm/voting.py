@@ -302,17 +302,10 @@ async def run_pass_to_get_votes_for_principles(
 
 async def get_preference_vote_for_messages(
     messages,
-    config: ExpConfig,
-    model_name: str,
+    model,
     numbered_principles: dict,
     valid_values: dict,
-    model_seed: int = 0,
 ):
-    model = inverse_cai.models.get_model(
-        model_name, max_tokens=config.s3_voting_max_output_tokens,
-        cache_seed=model_seed,
-    )
-
     vote = None
     try:
         vote_full = await inverse_cai.algorithm.utils.run_with_http_retries(
@@ -350,45 +343,54 @@ async def get_preference_vote_for_single_text(
     preferred_sample,
     rejected_sample,
     principles,
+    model_name: str,
+    config: ExpConfig,
     is_prompt_principles: bool = False,
-    **kwargs,
+    function_seed: int = 0,
+    model_seed: int = 0,
 ):
+    shared_args = dict(
+        principles = principles,
+        model = inverse_cai.models.get_model(
+            model_name, max_tokens=config.s3_voting_max_output_tokens,
+            cache_seed=model_seed,
+        ),
+        voting_prompt = config.alg_prompts.prompt_voting_prompt,
+    )
+
     if is_prompt_principles:
         return await get_prompt_preference_vote_for_single_text(
             prompt,
-            principles,
-            **kwargs,
+            **shared_args,
         )
     else:
         return await get_response_preference_vote_for_single_text(
             preferred_sample,
             rejected_sample,
-            principles,
-            **kwargs,
+            **shared_args,
         )
 
 
 async def get_prompt_preference_vote_for_single_text(
     prompt,
     principles,
-    config: ExpConfig,
-    model_name: str,
+    model,
+    voting_prompt,
     function_seed=0,
-    model_seed=0,
 ):
     numbered_principles = {i: v for i, v in enumerate(principles)}
 
     messages = inverse_cai.algorithm.utils.parse_prompt(
-        prompt_str=config.alg_prompts.prompt_voting_prompt,
+        prompt_str=voting_prompt,
         prompt_kwargs=dict(
             summaries=numbered_principles,
             prompt=prompt,
         ),
     )
+
     return await get_preference_vote_for_messages(
         messages,
-        config,
-        model_name,
+        model,
         numbered_principles,
         valid_values={
             "True": True,
@@ -398,7 +400,6 @@ async def get_prompt_preference_vote_for_single_text(
             "false": False,
             False: False,
         },
-        model_seed=model_seed,
     )
 
 
@@ -406,10 +407,9 @@ async def get_response_preference_vote_for_single_text(
     preferred_sample,
     rejected_sample,
     principles,
-    config: ExpConfig,
-    model_name: str,
+    model,
+    voting_prompt,
     function_seed=0,
-    model_seed=0,
 ):
     rng = np.random.default_rng(function_seed)
     flipped = rng.choice([True, False])
@@ -422,7 +422,7 @@ async def get_response_preference_vote_for_single_text(
     numbered_principles = {i: v for i, v in enumerate(principles)}
 
     messages = inverse_cai.algorithm.utils.parse_prompt(
-        prompt_str=config.alg_prompts.voting_prompt,
+        prompt_str=voting_prompt,
         prompt_kwargs=dict(
             sample_a=sample_a,
             sample_b=sample_b,
@@ -432,8 +432,7 @@ async def get_response_preference_vote_for_single_text(
 
     vote = await get_preference_vote_for_messages(
         messages,
-        config,
-        model_name,
+        model,
         numbered_principles,
         valid_values={
             "A": True,
@@ -443,7 +442,6 @@ async def get_response_preference_vote_for_single_text(
             "None": None,
             None: None,
         },
-        model_seed=model_seed,
     )
 
     if flipped:
