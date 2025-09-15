@@ -58,6 +58,7 @@ class CachedObject:
         self.cache_dir = cache_dir
         self.cached_funcs = cached_funcs
         self.seed = seed
+        self.logger = logger.debug  # downstream may want to override this
 
     @property
     def cache_seed_path(self):
@@ -93,7 +94,7 @@ class CachedObject:
         result = self.get_from_cache(h)
 
         if result is None:
-            logger.debug(f"cache {self.seed} miss ({h[:8]})")
+            self.logger(f"cache {self.seed} miss ({h[:8]})")
             result = getattr(self.obj, func)(*args, **kwargs)
 
             if asyncio.iscoroutine(result):
@@ -101,7 +102,7 @@ class CachedObject:
 
             self.save_to_cache(h, result)
         else:
-            logger.debug(f"cache {self.seed} hit ({h[:8]})")
+            self.logger(f"cache {self.seed} hit ({h[:8]})")
 
         return result
 
