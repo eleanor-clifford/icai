@@ -1,7 +1,6 @@
 from typing import Any, Sequence, Mapping, Union
 from functools import partial
 import json
-from filelock import FileLock
 
 import asyncio
 import langchain_core.messages.base
@@ -14,7 +13,6 @@ import hashlib
 from functools import lru_cache
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_anthropic import ChatAnthropic
-from langchain_community.callbacks import get_openai_callback
 import inverse_cai.local_secrets  # required to load env vars
 from loguru import logger
 
@@ -52,24 +50,6 @@ def hash_obj(obj):
     m = hashlib.sha256()
     m.update(json.dumps(serializable(obj)).encode())
     return m.hexdigest()
-
-
-def partial_hash(obj):
-    """
-    This function is for humans, to make it easier to inspect the differences
-    between objects
-    """
-    if isinstance(obj, str):
-        if len(obj) < 20:
-            return obj
-        else:
-            return f"hash:{hash_obj(obj)[:8]}"
-    elif isinstance(obj, Sequence):
-        return tuple(partial_hash(x) for x in obj)
-    elif isinstance(obj, Mapping):
-        return {k: partial_hash(v) for k, v in obj.items()}
-    else:
-        return f"hash:{hash_obj(obj)[:8]}"
 
 
 class CachedObject:
