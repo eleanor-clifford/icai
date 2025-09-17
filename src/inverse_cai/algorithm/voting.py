@@ -3,6 +3,7 @@ import asyncio
 import time
 import numpy as np
 import pandas as pd
+import traceback
 from pathlib import Path
 from loguru import logger
 from tqdm.asyncio import tqdm
@@ -329,6 +330,7 @@ async def get_preference_vote_for_messages(
         else:
             logger.error(f"Failed to parse votes: {vote}")
         logger.error(e)
+        logger.error(traceback.format_exc())
         vote = {i: "invalid" for i in range(len(numbered_principles))}
 
     return {
