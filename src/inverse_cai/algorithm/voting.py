@@ -355,19 +355,20 @@ async def get_preference_vote_for_single_text(
             model_name, max_tokens=config.s3_voting_max_output_tokens,
             cache_seed=model_seed,
         ),
-        voting_prompt = config.alg_prompts.prompt_voting_prompt,
         function_seed = function_seed,
     )
 
     if is_prompt_principles:
         return await get_prompt_preference_vote_for_single_text(
             prompt,
+            voting_prompt = config.alg_prompts.prompt_voting_prompt,
             **shared_args,
         )
     else:
         return await get_response_preference_vote_for_single_text(
             preferred_sample,
             rejected_sample,
+            voting_prompt = config.alg_prompts.voting_prompt,
             **shared_args,
         )
 
