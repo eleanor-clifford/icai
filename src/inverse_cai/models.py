@@ -202,7 +202,6 @@ def get_model(
 
 
 def get_embeddings_model(
-    self,
     name: str,
     cache: bool = True,
     cache_seed: int = 0,
