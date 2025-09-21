@@ -126,6 +126,7 @@ def get_model(
     max_tokens: int = 1000,
     cache: bool = True,
     cache_seed: int = 0,
+    request_timeout: int | None = 60,
 ) -> Any:
     """Get a language model instance.
 
@@ -150,6 +151,7 @@ def get_model(
             max_tokens=max_tokens,
             temperature=temp,
             model_kwargs=model_kwargs,
+            request_timeout=request_timeout,
         )
 
     elif name.startswith("anthropic"):
@@ -158,6 +160,7 @@ def get_model(
             max_tokens=max_tokens,
             temperature=temp,
             model_kwargs=model_kwargs,
+            request_timeout=request_timeout,
         )
 
     elif name.startswith("openrouter"):
@@ -185,6 +188,7 @@ def get_model(
             openai_api_key=openrouter_api_key,  # Use the OpenRouter API key
             openai_api_base="https://openrouter.ai/api/v1",
             default_headers=OPENROUTER_HEADERS,
+            request_timeout=request_timeout,
             model_kwargs=model_kwargs,
         )
     else:
