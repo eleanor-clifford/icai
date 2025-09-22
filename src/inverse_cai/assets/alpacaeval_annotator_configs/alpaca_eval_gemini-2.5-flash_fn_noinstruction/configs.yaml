@@ -1,8 +1,8 @@
 alpaca_eval_gpt4_turbo_fn:
-  prompt_template: "alpaca_eval_gpt4o_fn_noinstruction/alpaca_eval_fn.txt"
+  prompt_template: "alpaca_eval_gemini-2.5-flash_fn_noinstruction/alpaca_eval_fn.txt"
   fn_completions: "openai_completions"
   completions_kwargs:
-    model_name: "openai/gpt-4o"
+    model_name: "google/gemini-2.5-flash"
     client_kwargs:
       base_url: "https://openrouter.ai/api/v1"
     max_tokens: 100

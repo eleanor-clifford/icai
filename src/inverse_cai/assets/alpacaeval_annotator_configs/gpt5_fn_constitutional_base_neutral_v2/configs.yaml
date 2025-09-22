@@ -1,8 +1,8 @@
 chatgpt_fn:
-  prompt_template: "gpt4omini_fn_constitutional_base_neutral_v2/constitutional_prompt.txt"
+  prompt_template: "gpt5_fn_constitutional_base_neutral_v2/constitutional_prompt.txt"
   fn_completions: "openai_completions"
   completions_kwargs:
-    model_name: "openai/gpt-4o-mini"
+    model_name: "openai/gpt-5"
     client_kwargs:
       base_url: "https://openrouter.ai/api/v1"
     max_tokens: 50
