@@ -519,8 +519,11 @@ def clean_vote_json(vote_json, summaries_len):
     """
     Clean the vote json.
     """
+
     vote_json = (
-        vote_json.replace("\n", "")
+        vote_json.replace("```json\n", "")
+        .replace("\n", "")
+        .replace("```", "")
         .replace(" ", "")
         .replace("true", "True")
         .replace("false", "False")
