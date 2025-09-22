@@ -91,6 +91,7 @@ def generate_principles_from_feedback(
                             num_principles=num_principles_per_sampling_step,
                             model_name=model_name,
                             config=config,
+                            max_tokens=config.s1_discovery_max_output_tokens,
                         )
                     )
                     return index, principles, prompt_principles
@@ -145,6 +146,7 @@ async def generate_principles_from_single_ranking(
     num_principles,
     model_name: str,
     config: ExpConfig,
+    max_tokens: int = 1000,
 ) -> list:
     """
     Generate principles from a single ranking.
@@ -165,7 +167,7 @@ async def generate_principles_from_single_ranking(
     # out of order. If it does need to, a seed must be carefully passed in.
 
     # get the model
-    model = inverse_cai.models.get_model(model_name, cache_seed=config.random_seed)
+    model = inverse_cai.models.get_model(model_name, cache_seed=config.random_seed, max_tokens=max_tokens)
     principless: list = []
 
     # Allows disabling prompt principle generation entirely

@@ -191,6 +191,7 @@ class ExpConfig:
     s1_num_principles_per_sampling_step: int = 3
     s1_num_principles_per_instance: int | None = None
     s1_num_rankings_per_sampling_step: int = 1
+    s1_discovery_max_output_tokens: int = 1000
 
     # Stage 2: principle clustering and de-duplication
     s2_num_clusters: int = 3
