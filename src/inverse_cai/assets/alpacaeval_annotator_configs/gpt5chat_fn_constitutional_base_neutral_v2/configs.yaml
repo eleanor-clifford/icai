@@ -15,7 +15,7 @@ chatgpt_fn:
         parameters:
           type: "object"
           properties:
-            best_output:
+            selected_output:
               type: "string"
               description: "Name of the selected output, should be 'Output (a)' or 'Output (b)'"
         "required": [ "selected_output" ]
