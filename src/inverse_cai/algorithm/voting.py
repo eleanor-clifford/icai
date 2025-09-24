@@ -310,6 +310,9 @@ async def get_preference_vote_for_messages(
         vote_full = await inverse_cai.algorithm.utils.run_with_http_retries(
             model.ainvoke, messages
         )
+        if vote_full is None and getattr(model, "cache_only", False):
+            return {p: "nocache" for p in numbered_principles.values()}
+
         if vote_full.response_metadata.get("finish_reason") != "stop":
             logger.warning(
                 f"Vote did not finish with 'stop' reason, instead with '{vote_full.response_metadata.get('finish_reason')}' reason. "

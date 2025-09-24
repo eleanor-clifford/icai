@@ -53,11 +53,12 @@ def hash_obj(obj):
 
 
 class CachedObject:
-    def __init__(self, obj, cache_dir, cached_funcs, seed=0):
+    def __init__(self, obj, cache_dir, cached_funcs, seed=0, cache_only: bool = False):
         self.obj = obj
         self.cache_dir = cache_dir
         self.cached_funcs = cached_funcs
         self.seed = seed
+        self.cache_only = cache_only
         self.logger = logger.debug  # downstream may want to override this
 
     @property
@@ -95,6 +96,9 @@ class CachedObject:
 
         if result is None:
             self.logger(f"cache {self.seed} miss ({h[:8]})")
+            if self.cache_only:
+                return None
+
             result = getattr(self.obj, func)(*args, **kwargs)
 
             if asyncio.iscoroutine(result):
@@ -127,6 +131,7 @@ def get_model(
     cache: bool = True,
     cache_seed: int = 0,
     request_timeout: int | None = 60,
+    cache_only: bool = False
 ) -> Any:
     """Get a language model instance.
 
@@ -200,6 +205,7 @@ def get_model(
             cache_dir=f"exp/cache/models/{name}_{temp}_{enable_logprobs}_{max_tokens}",
             cached_funcs=("invoke", "ainvoke"),
             seed=cache_seed,
+            cache_only=cache_only,
         )
 
     return model
