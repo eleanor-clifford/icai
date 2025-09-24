@@ -148,6 +148,8 @@ def _fatal_model_error(err):
         # see https://http.cat/<code>
         # some of these are very obscure, but include all retryable ones just in case
         return False
+    elif code is None:
+        return False
     elif code // 100 == 5:
         # 5xx server errors
         return False
