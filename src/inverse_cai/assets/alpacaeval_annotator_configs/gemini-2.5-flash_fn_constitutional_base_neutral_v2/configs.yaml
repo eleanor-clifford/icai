@@ -7,18 +7,24 @@ chatgpt_fn:
       base_url: "https://openrouter.ai/api/v1"
     max_tokens: 50
     temperature: 0
-    function_call:
-      name: "print_selected_model"
-    functions:
-      - name: "print_selected_model"
-        description: "Print the selected model given the selected output."
-        parameters:
-          type: "object"
-          properties:
-            selected_output:
-              type: "string"
-              description: "Name of the selected output, should be 'Output (a)' or 'Output (b)'"
-        "required": [ "selected_output" ]
+    tool_choice:
+      type: function
+      function:
+        name: "print_selected_model"
+    tools:
+      - type: function
+        function:
+          name: "print_selected_model"
+          description: "Print the selected model given the selected output."
+          strict: true
+          parameters:
+            type: "object"
+            properties:
+              selected_output:
+                type: "string"
+                description: "Name of the selected output, should be 'Output (a)' or 'Output (b)'"
+            additionalProperties: false
+            required: [ "selected_output" ]
   completion_parser_kwargs:
     outputs_to_match:
       1: '(?i)output \(a\)'
