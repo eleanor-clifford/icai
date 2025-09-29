@@ -80,6 +80,7 @@ class CachedObject:
         try:
             with open(self.cache_key_path(key), "wb") as cache_file:
                 pickle.dump(value, cache_file)
+            self.logger(f"saved {key} to cache")
         except FileNotFoundError:
             # using try-except means os.makedirs will only be run once at most
             os.makedirs(self.cache_seed_path, exist_ok=True)
@@ -95,18 +96,23 @@ class CachedObject:
         result = self.get_from_cache(h)
 
         if result is None:
-            self.logger(f"cache {self.seed} miss ({h[:8]})")
+            self.logger(f"cache miss ({self.cache_key_path(h)})")
             if self.cache_only:
                 return None
 
-            result = getattr(self.obj, func)(*args, **kwargs)
-
-            if asyncio.iscoroutine(result):
-                result = await result
-
-            self.save_to_cache(h, result)
+            try:
+                result = getattr(self.obj, func)(*args, **kwargs)
+                if asyncio.iscoroutine(result):
+                    result = await result
+            except BaseException as e:
+                result = e
+                raise e
+            finally:
+                self.save_to_cache(h, result)
         else:
-            self.logger(f"cache {self.seed} hit ({h[:8]})")
+            self.logger(f"cache {self.seed} hit ({h})")
+            if isinstance(result, BaseException):
+                raise result
 
         return result
 
