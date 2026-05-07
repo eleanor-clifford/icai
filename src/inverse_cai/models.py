@@ -95,6 +95,9 @@ class CachedObject:
         h = hash_obj((func, args, kwargs))
         result = self.get_from_cache(h)
 
+        if isinstance(result, asyncio.exceptions.CancelledError):
+            result = None
+
         if result is None:
             self.logger(f"cache miss ({self.cache_key_path(h)})")
             if self.cache_only:
